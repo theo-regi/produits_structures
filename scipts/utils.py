@@ -105,48 +105,47 @@ class Maturity_handler:
         return self.__convention_handler(valuation_date, end_date)
 
 class PaymentScheduleHandler:
-    def __init__(self, valuation_date: str, end_date:str, periodicity: str,date_format :str) -> None:
+    def __init__(self, valuation_date: str, end_date:str, periodicity: str, date_format :str) -> None:
         self.__valuation_date = valuation_date
         self.__end_date = end_date
         self.__periodicity = periodicity
         self.__date_format = date_format
         pass
 
-    def build_schedule(self, format_date: str, convention: str, rolling_convention: str, market: str) -> tuple:
+    def build_schedule(self, convention: str, rolling_convention: str, market: str) -> tuple:
         """Takes a start_date, end_date, periodicity :: returns a tuple of year_fractions
             tuple because read only."""
-        self.__valuation_date = dt.strptime(self.__valuation_date, format_date)
-        self.__end_date = dt.strptime(self.__end_date, format_date)
+        self.__valuation_date = dt.strptime(self.__valuation_date, self.__date_format)
+        self.__end_date = dt.strptime(self.__end_date, self.__date_format)
         list_dates = self.__get_intermediary_dates()
 
-        maturityhandler = Maturity_handler(convention, format_date, rolling_convention, market)
+        maturityhandler = Maturity_handler(convention, self.__date_format, rolling_convention, market)
 
         list_year_fractions = []
+        #If we need the "t" corresponding to the first date/start date of the product (t=0), adjust list_dates[1:] to list_dates[0:]
         for date in list_dates[1:]:
-            list_year_fractions.append(maturityhandler.get_year_fraction(list_dates[1], date))
-
+            list_year_fractions.append(maturityhandler.get_year_fraction(list_dates[0], date))
         return tuple(list_year_fractions)
 
-    def get_intermediary_dates(self) -> list:
+    def __get_intermediary_dates(self) -> list:
         """Build a dates list with all intermediary dates between start and end based on periodicity."""
         """Supported periodicity: monthly, quaterly, semi-annually, annually."""
         list_dates = [self.__valuation_date]
-        #count_date = self.__valuation_date
-        count_date = dt.strptime(self.__valuation_date, self.__date_format)
-        end_date = dt.strptime(self.__end_date,self.__date_format)
-        while count_date < end_date:
+        count_date = self.__valuation_date
+       
+        while count_date < self.__end_date-relativedelta(months=1):
             if self.__periodicity == "monthly":
                 count_date += relativedelta(months=1)
-                list_dates.append(count_date.strftime(self.__date_format))
+                list_dates.append(count_date)
             elif self.__periodicity == "quaterly":
                 count_date += relativedelta(months=3)
-                list_dates.append(count_date.strftime(self.__date_format))
+                list_dates.append(count_date)
             elif self.__periodicity == "semi-annually":
                 count_date += relativedelta(months=6)
-                list_dates.append(count_date.strftime(self.__date_format))
+                list_dates.append(count_date)
             elif self.__periodicity == "annually":
                 count_date += relativedelta(years=1)
-                list_dates.append(count_date.strftime(self.__date_format))
+                list_dates.append(count_date)
             else:
                 raise ValueError(f"Entered periodicity {self.__periodicity} is not supported. Supported periodicity: monthly, quaterly, semi-annually, annually.")
         
@@ -161,15 +160,10 @@ class Rates_curve:
     def __init__(self,flat_rate : float,path_rate : str,frequency :str):
         self.__flat_rate = flat_rate
         self.__path_rate = path_rate
+        pass
 
     #def ZC_lineaire(self,flat_rate,frequency):
      #   if frequency =='3M':
-            
-
-
-
-
-
 
 
 #Classe de vol

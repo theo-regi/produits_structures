@@ -1,10 +1,8 @@
 from unittest import TestCase
 import unittest
-
 from datetime import datetime as dt
 
-from utils import Maturity_handler
-from utils import PaymentScheduleHandler
+from utils import Maturity_handler, PaymentScheduleHandler
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour tester les classes unitaires-----------------------------------
@@ -95,19 +93,54 @@ class TestMaturityHandlerDayCount(unittest.TestCase):
 
 class TestPaymentScheduleHandler(unittest.TestCase):
     def setUp(self):
-        """Initialize PaymentScheduleHandler instances for different conventions"""
-        self.valuation_date = "02/01/2025"
-        self.end_date = "02/01/2055"
-        self.date_format ="%d/%m/%Y"
+        """Set up test cases with different periodicities."""
+        self.date_format = "%d/%m/%Y"
+        self.valuation_date = "02/01/2024"
+        self.end_date = "02/01/2026"
 
-        self.Monthly_Schedule = PaymentScheduleHandler(self.valuation_date,self.end_date,"monthly",self.date_format)
+    def test_length(self):
+        """Test the length matching in the schedule"""
+        schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "monthly", self.date_format)
+        result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
+        self.assertEqual(len(result), 24)
 
-    def test_intermediary_monthly(self):
-        """test get_intermediary_dates"""
+    def test_monthly_schedule(self):
+        """Test monthly periodicity."""
+        schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "monthly", self.date_format)
+        result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
+        expected_tuple = (0.0833,0.1667,0.25,0.3333,0.4167,0.5,0.5833,0.6667,0.75,0.8333,0.9167,1,1.0833,1.1667,1.25,1.3333,1.4167,1.5,1.5833,1.6667,1.75,1.8333,1.9167,2)
+        for expected, actual in zip(result, expected_tuple):
+            self.assertAlmostEqual(expected, actual, places=4)
 
-        expected_result = "02/02/2025"
-        result = self.Monthly_Schedule.get_intermediary_dates()
-        self.assertEqual(result[1], expected_result)
+    def test_quarterly_schedule(self):
+        """Test quarterly periodicity."""
+        schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "quaterly", self.date_format)
+        result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
+        expected_tuple = (0.25,0.5,0.75,1,1.25,1.5,1.75,2)
+        for expected, actual in zip(result, expected_tuple):
+            self.assertAlmostEqual(expected, actual, places=4)
+
+    def test_semi_annual_schedule(self):
+        """Test semi-annual periodicity."""
+        schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "semi-annually", self.date_format)
+        result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
+        expected_tuple = (0.5,1,1.5,2)
+        for expected, actual in zip(result, expected_tuple):
+            self.assertAlmostEqual(expected, actual, places=4)
+
+    def test_annual_schedule(self):
+        """Test annual periodicity."""
+        schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "annually", self.date_format)
+        result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
+        expected_tuple = (1,2)
+        for expected, actual in zip(result, expected_tuple):
+            self.assertAlmostEqual(expected, actual, places=4)
+
+    def test_unsupported_periodicity(self):
+        """Test invalid periodicity handling."""
+        schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "bi-monthly", self.date_format)
+        with self.assertRaises(ValueError):
+            schedule_handler.build_schedule("30/360", "Following", "XECB")
 
 if __name__ == "__main__":
     unittest.main()
