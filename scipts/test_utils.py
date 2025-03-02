@@ -102,13 +102,13 @@ class TestPaymentScheduleHandler(unittest.TestCase):
         """Test the length matching in the schedule"""
         schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "monthly", self.date_format)
         result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
-        self.assertEqual(len(result), 25)
+        self.assertEqual(len(result), 24)
 
     def test_monthly_schedule(self):
         """Test monthly periodicity."""
         schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "monthly", self.date_format)
         result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
-        expected_tuple = (0, 0.0833,0.1667,0.25,0.3333,0.4167,0.5,0.5833,0.6667,0.75,0.8333,0.9167,1,1.0833,1.1667,1.25,1.3333,1.4167,1.5,1.5833,1.6667,1.75,1.8333,1.9167,2)
+        expected_tuple = (0.0833,0.1667,0.25,0.3333,0.4167,0.5,0.5833,0.6667,0.75,0.8333,0.9167,1,1.0833,1.1667,1.25,1.3333,1.4167,1.5,1.5833,1.6667,1.75,1.8333,1.9167,2)
         for expected, actual in zip(result, expected_tuple):
             self.assertAlmostEqual(expected, actual, places=4)
 
@@ -116,7 +116,7 @@ class TestPaymentScheduleHandler(unittest.TestCase):
         """Test quarterly periodicity."""
         schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "quaterly", self.date_format)
         result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
-        expected_tuple = (0,0.25,0.5,0.75,1,1.25,1.5,1.75,2)
+        expected_tuple = (0.25,0.5,0.75,1,1.25,1.5,1.75,2)
         for expected, actual in zip(result, expected_tuple):
             self.assertAlmostEqual(expected, actual, places=4)
 
@@ -124,7 +124,7 @@ class TestPaymentScheduleHandler(unittest.TestCase):
         """Test semi-annual periodicity."""
         schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "semi-annually", self.date_format)
         result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
-        expected_tuple = (0,0.5,1,1.5,2)
+        expected_tuple = (0.5,1,1.5,2)
         for expected, actual in zip(result, expected_tuple):
             self.assertAlmostEqual(expected, actual, places=4)
 
@@ -132,7 +132,7 @@ class TestPaymentScheduleHandler(unittest.TestCase):
         """Test annual periodicity."""
         schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "annually", self.date_format)
         result = schedule_handler.build_schedule("30/360", "Modified Following", "XECB")
-        expected_tuple = (0,1,2)
+        expected_tuple = (1,2)
         for expected, actual in zip(result, expected_tuple):
             self.assertAlmostEqual(expected, actual, places=4)
 

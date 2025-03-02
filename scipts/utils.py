@@ -145,7 +145,7 @@ class PaymentScheduleHandler:
 
         list_year_fractions = []
         #If we need the "t" corresponding to the first date/start date of the product (t=0), adjust list_dates[1:] to list_dates[0:]
-        for date in list_dates[0:]:
+        for date in list_dates[1:]:
             list_year_fractions.append(maturityhandler.get_year_fraction(list_dates[0], date))
         return tuple(list_year_fractions)
 
