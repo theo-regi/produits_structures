@@ -88,11 +88,14 @@ class Maturity_handler:
         else:
             raise ValueError(f"Rolling Convention {self.__rolling_convention} is not supported ! Choose: Following, Modified Following, Preceding, Modified Preceding")
 
-    def get_year_fraction(self, valuation_date: str, end_date:str) -> float:
+    def get_year_fraction(self, valuation_date, end_date) -> float:
         """Takes valuatio_date and end_date as strings, convert to datetime and 
             get year_fraction (float) depending on the self.__convention"""
-        valuation_date = dt.strptime(valuation_date, self.__format_date)
-        end_date = dt.strptime(end_date, self.__format_date)
+        #If dates arrives in the strings
+        if type(valuation_date) == str:
+            valuation_date = dt.strptime(valuation_date, self.__format_date)
+        if type(end_date) == str:
+            end_date = dt.strptime(end_date, self.__format_date)
 
         #We need to get the real "openned days" of the market (calendars) = Modified Following, etc.    
         if valuation_date.weekday()>=5 or valuation_date in self.__calendar:
@@ -100,7 +103,55 @@ class Maturity_handler:
         if valuation_date.weekday()>=5 or valuation_date in self.__calendar:
             end_date = self.__apply_rolling_convention(end_date)
         return self.__convention_handler(valuation_date, end_date)
+
+class PaymentScheduleHandler:
+    def __init__(self, valutation_date: str, end_date:str, periodicity: str) -> None:
+        self.__valuation_date = valutation_date
+        self.__end_date = end_date
+        self.__periodicity = periodicity
+        pass
+
+    def build_schedule(self, format_date: str, convention: str, rolling_convention: str, market: str) -> tuple:
+        """Takes a start_date, end_date, periodicity :: returns a tuple of year_fractions
+            tuple because read only."""
+        self.__valuation_date = dt.strptime(self.__valuation_date, format_date)
+        self.__end_date = dt.strptime(self.__end_date, format_date)
+        list_dates = self.__get_intermediary_dates()
+
+        maturityhandler = Maturity_handler(convention, format_date, rolling_convention, market)
+
+        list_year_fractions = []
+        for date in list_dates[1:]:
+            list_year_fractions.append(maturityhandler.get_year_fraction(list_dates[1], date))
+
+        return tuple(list_year_fractions)
+
+    def __get_intermediary_dates(self) -> list:
+        """Build a dates list with all intermediary dates between start and end based on periodicity."""
+        """Supported periodicity: monthly, quaterly, semi-annually, annually."""
+        list_dates = [self.__valuation_date]
+        count_date = self.__valuation_date
+        while count_date < self.__end_date:
+            if self.__periodicity == "monthly":
+                count_date += relativedelta(months=1)
+                list_dates.append(count_date)
+            elif self.__periodicity == "quaterly":
+                count_date += relativedelta(months=3)
+                list_dates.append(count_date)
+            elif self.__periodicity == "semi-annually":
+                count_date += relativedelta(months=6)
+                list_dates.append(count_date)
+            elif self.__periodicity == "annually":
+                count_date += relativedelta(years=1)
+                list_dates.append(count_date)
+            else:
+                raise ValueError(f"Entered periodicity {self.__periodicity} is not supported. Supported periodicity: monthly, quaterly, semi-annually, annually.")
+        
+        list_dates.append(self.__end_date)
+        return list_dates
+        
     
+
 #Classe de rate et courbe de taux
 
 #Classe de vol
