@@ -1,10 +1,13 @@
 import numpy as np
+from abc import ABC, abstractmethod
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes de produits----------------------------
 #-------------------------------------------------------------------------------------------------------
+
+#____________________________Classe pour les ZC (pas de call de l'abstraite)_____________________________
 #Zero-Coupon Class:: nominal (optionnal = 100 if not given)
-class ZCBond:
+class ZCBond():
     """
     Classe qui cherche à répliquer un bond zero coupon = 1 paiement unique à maturité.
     
@@ -97,7 +100,6 @@ class ZCBond:
         
         Returns: float: Convexity of the zero-coupon bond.
         """
-
         if market_price is not None and discount_factor is None:
             ytm = self.get_ytm(market_price, maturity)
             return (maturity*(maturity+1)*self.__nominal)/(market_price*((1+ytm)**(2+maturity)))
@@ -108,3 +110,64 @@ class ZCBond:
         else:
             raise ValueError(f"Incorrect input, we need discount factor OR market price: DF = {discount_factor} and market price = {market_price}.")
       
+#-------------------------------------------------------------------------------------------------------
+#----------------------------Classes de produits généralistes en fixed-income---------------------------
+#-------------------------------------------------------------------------------------------------------
+#____________________________Classe abstraite pour les produits d'Income________________________________
+class FixedIncomeProduct(ABC):
+    def __init__(self, notional: float=100) -> None:
+        self.__notional = notional
+    
+    @abstractmethod
+    def calculate_npv(self) -> float:
+        """
+        Returns the product NPV as float
+        """
+        pass
+
+    @abstractmethod
+    def calculate_duration(self) -> float:
+        """
+        Returns duration of the product
+        """
+        pass
+
+    @abstractmethod
+    def calculate_sensitivity(self) -> float:
+        """
+        Returns sensitivity of the product
+        """
+        pass
+
+    @abstractmethod
+    def calculate_convexity(self) -> float:
+        """
+        Returns convexity of the product
+        """
+        pass
+
+    @abstractmethod
+    def calculate_pv01(self) -> float:
+        """
+        Returns pov01 of the product
+        """
+        pass
+
+"""
+1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
+- Float et Fix leg, car ce seront des bases pour construire le rest, il faut un input échange de notionnel (yes/no)
+- Fixed bond(c'est une leg fix avec de l'échange de notionnel à la fin)
+- FRNs (pareil que fixed bond mais en float)
+- Caps / floors
+- Options de call / put
+
+2: Classe portfolio fixed income qui permettrat de construire les produits ci-dessus:
+- Fix to Float swap (mono CCY)
+- Fix to fix swap (XCCY)
+- float to float swap (XCCY)
+- FRN + cap (ou / +) floor
+- Callable / puttable
+- pricing d'oblig au marché (égalisation d'une npv fix sur un float leg)
+-> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
+    de valorisation / risque
+"""

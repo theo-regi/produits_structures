@@ -142,7 +142,6 @@ class TestPaymentScheduleHandler(unittest.TestCase):
         with self.assertRaises(ValueError):
             schedule_handler.build_schedule("30/360", "Following", "XECB")
 
-
 class TestRatesCurve(unittest.TestCase):
     def setUp(self):
         """Set up test cases with different periodicities."""
@@ -168,12 +167,6 @@ class TestRatesCurve(unittest.TestCase):
         expected_result = 2.364787
         result= curve.quadratic_interpol(liste).iloc[3]['Rate']
         self.assertAlmostEqual(result, expected_result,places = 6)
-
-
-
-        
-
-
 
 
 if __name__ == "__main__":

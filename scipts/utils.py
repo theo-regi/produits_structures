@@ -132,10 +132,10 @@ class PaymentScheduleHandler:
 
     utilisation: créer un payement scheduler avec les inputs, appeller build_schedule avec les conventions utilisées + marché.
     
-    -> renvoie un tuple d'échéances intermédiaires (ex:(0.5, 1, 1.5, 2, 2.5, 3) pour 3 ans paiement semi-annuel)
+    Renvoie un tuple d'échéances intermédiaires (ex:(0.5, 1, 1.5, 2, 2.5, 3) pour 3 ans paiement semi-annuel)
         ajusté aux jours de marchés fermés + convention de calculs.
     """
-    def __init__(self, valuation_date: str, end_date:str, periodicity: str, date_format :str) -> None:
+    def __init__(self, valuation_date: str, end_date: str, periodicity: str, date_format:str) -> None:
         self.__valuation_date = valuation_date
         self.__end_date = end_date
         self.__periodicity = periodicity
@@ -184,7 +184,7 @@ class PaymentScheduleHandler:
         
 #Classe de rate et courbe de taux
 class Rates_curve:
-    def __init__(self,flat_rate : float,path_rate : str):
+    def __init__(self,flat_rate:float, path_rate:str):
         self.__flat_rate = flat_rate
         self.__data_rate = pd.read_csv(path_rate,sep=";")
         pass
