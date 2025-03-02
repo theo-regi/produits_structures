@@ -2,7 +2,7 @@ from unittest import TestCase
 import unittest
 from datetime import datetime as dt
 
-from utils import Maturity_handler, PaymentScheduleHandler
+from utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour tester les classes unitaires-----------------------------------
@@ -141,6 +141,31 @@ class TestPaymentScheduleHandler(unittest.TestCase):
         schedule_handler = PaymentScheduleHandler(self.valuation_date, self.end_date, "bi-monthly", self.date_format)
         with self.assertRaises(ValueError):
             schedule_handler.build_schedule("30/360", "Following", "XECB")
+
+
+class TestRatesCurve(unittest.TestCase):
+    def setUp(self):
+        """Set up test cases with different periodicities."""
+        self.flat_rate = 0.025
+        self.path_rate = "RateCurve.csv"
+    
+    def test_year_fraction(self):
+        curve = Rates_curve(self.flat_rate,self.path_rate)
+
+        liste= [0.002777778,0.019444444,0.083333333,0.25,0.305555556]
+
+        curve.year_fraction_data(360)
+        curve.attribute_rates_curve(liste)
+        result = curve.get_data_rate().iloc[0]['Year_fraction']
+        expected_result = 0.00277778
+        self.assertAlmostEqual(result, expected_result,places = 6)
+
+
+
+        
+
+
+
 
 if __name__ == "__main__":
     unittest.main()

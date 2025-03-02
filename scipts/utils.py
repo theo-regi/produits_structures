@@ -2,6 +2,8 @@ from datetime import datetime as dt
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 import holidays
+import pandas as pd
+import numpy as np
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes utilitaires----------------------------
 #-------------------------------------------------------------------------------------------------------
@@ -176,13 +178,45 @@ class PaymentScheduleHandler:
         
 #Classe de rate et courbe de taux
 class Rates_curve:
-    def __init__(self,flat_rate : float,path_rate : str,frequency :str):
+    def __init__(self,flat_rate : float,path_rate : str):
         self.__flat_rate = flat_rate
-        self.__path_rate = path_rate
+        self.__data_rate = pd.read_csv(path_rate,sep=";")
         pass
 
-    #def ZC_lineaire(self,flat_rate,frequency):
-     #   if frequency =='3M':
+    def get_data_rate(self):
+        return self.__data_rate
 
+    def year_fraction_data(self,convention):
+        factor_map = {'D': 1, 'W': 7, 'M': 30, 'Y': convention}
+        self.__data_rate['Year_fraction'] = self.__data_rate['Pillar'].str[:-1].astype(float) * self.__data_rate['Pillar'].str[-1].map(factor_map) / convention
+
+    def attribute_rates_curve(self,product_year_fraction : list):
+        # Créer la nouvelle ligne en fonction de la condition
+        new_row = []
+        for year in product_year_fraction:
+            if year in self.__data_rate['Year_fraction'].values:
+                new_row.append(year)
+            else:
+                new_row.append(np.nan)
+
+        # Ajouter la nouvelle ligne à votre DataFrame
+        self.__data_rate.loc[len(self.__data_rate)] = new_row
+        print(self.__data_rate)
+
+        '''# Créer la nouvelle ligne en fonction de la condition
+new_row = {}
+for col in df.columns:
+    if col == 'Year_fraction':
+        new_row[col] = [year if year in df['Year_fraction'].values else np.nan for year in ma_liste]
+    else:
+        new_row[col] = [np.nan] * len(ma_liste)  # Mettre NaN pour les autres colonnes, si nécessaire
+
+# Convertir en DataFrame et l'ajouter au DataFrame original
+new_df = pd.DataFrame(new_row)
+
+# Ajouter la nouvelle ligne
+df = pd.concat([df, new_df], ignore_index=True)
+
+print(df)'''
 
 #Classe de vol
