@@ -149,15 +149,24 @@ class TestRatesCurve(unittest.TestCase):
         self.flat_rate = 0.025
         self.path_rate = "RateCurve.csv"
     
-    def test_year_fraction(self):
+    def test_linear_interpol(self):
         curve = Rates_curve(self.flat_rate,self.path_rate)
 
-        liste= [0.002777778,0.019444444,0.083333333,0.25,0.305555556]
+        #On fait le test sur le taux 2 Mois pour voir si ça fonctionne 
+        liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
 
-        curve.year_fraction_data(360)
-        curve.attribute_rates_curve(liste)
-        result = curve.get_data_rate().iloc[0]['Year_fraction']
-        expected_result = 0.00277778
+        expected_result = 2.359799
+        result= curve.linear_interpol(liste).iloc[3]['Rate']
+        self.assertAlmostEqual(result, expected_result,places = 6)
+
+    def test_quadratic_interpol(self):
+        curve = Rates_curve(self.flat_rate,self.path_rate)
+
+        #On fait le test sur le taux 2 Mois pour voir si ça fonctionne 
+        liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
+
+        expected_result = 2.364787
+        result= curve.quadratic_interpol(liste).iloc[3]['Rate']
         self.assertAlmostEqual(result, expected_result,places = 6)
 
 

@@ -188,35 +188,32 @@ class Rates_curve:
 
     def year_fraction_data(self,convention):
         factor_map = {'D': 1, 'W': 7, 'M': 30, 'Y': convention}
+
         self.__data_rate['Year_fraction'] = self.__data_rate['Pillar'].str[:-1].astype(float) * self.__data_rate['Pillar'].str[-1].map(factor_map) / convention
+        self.__data_rate['Year_fraction'] = self.__data_rate['Year_fraction'].round(6)
+        
+        return self.__data_rate
 
     def attribute_rates_curve(self,product_year_fraction : list):
-        # Créer la nouvelle ligne en fonction de la condition
-        new_row = []
-        for year in product_year_fraction:
-            if year in self.__data_rate['Year_fraction'].values:
-                new_row.append(year)
-            else:
-                new_row.append(np.nan)
+        df= pd.DataFrame({"Year_fraction": product_year_fraction})
+        df["Year_fraction"]=df["Year_fraction"].round(6)
+        df = df[~df["Year_fraction"].isin(self.year_fraction_data(360)["Year_fraction"])]
 
-        # Ajouter la nouvelle ligne à votre DataFrame
-        self.__data_rate.loc[len(self.__data_rate)] = new_row
+        self.__data_rate = pd.merge(self.year_fraction_data(360),df,how='outer')
+        self.__data_rate = self.__data_rate.sort_values(by='Year_fraction').reset_index(drop=True)
+
+        return self.__data_rate
+
+    def linear_interpol(self,product_year_fraction):
+        self.__data_rate = self.attribute_rates_curve(product_year_fraction)
+        self.__data_rate["Rate"] = self.__data_rate["Rate"].interpolate(method='linear')
+        return self.__data_rate
+    
+    def quadratic_interpol(self,product_year_fraction):
+        self.__data_rate = self.attribute_rates_curve(product_year_fraction)
+        self.__data_rate["Rate"] = self.__data_rate["Rate"].interpolate(method='quadratic')
         print(self.__data_rate)
+        return self.__data_rate
 
-        '''# Créer la nouvelle ligne en fonction de la condition
-new_row = {}
-for col in df.columns:
-    if col == 'Year_fraction':
-        new_row[col] = [year if year in df['Year_fraction'].values else np.nan for year in ma_liste]
-    else:
-        new_row[col] = [np.nan] * len(ma_liste)  # Mettre NaN pour les autres colonnes, si nécessaire
-
-# Convertir en DataFrame et l'ajouter au DataFrame original
-new_df = pd.DataFrame(new_row)
-
-# Ajouter la nouvelle ligne
-df = pd.concat([df, new_df], ignore_index=True)
-
-print(df)'''
 
 #Classe de vol
