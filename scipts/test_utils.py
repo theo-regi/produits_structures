@@ -1,7 +1,10 @@
 from unittest import TestCase
 import unittest
 
+from datetime import datetime as dt
+
 from utils import Maturity_handler
+from utils import PaymentScheduleHandler
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour tester les classes unitaires-----------------------------------
@@ -89,6 +92,22 @@ class TestMaturityHandlerDayCount(unittest.TestCase):
         end_date = "03/03/2025"
         result = maturity_modified_preceding.get_year_fraction(start_date, end_date)
         self.assertEqual(result, 0)
+
+class TestPaymentScheduleHandler(unittest.TestCase):
+    def setUp(self):
+        """Initialize PaymentScheduleHandler instances for different conventions"""
+        self.valuation_date = "02/01/2025"
+        self.end_date = "02/01/2055"
+        self.date_format ="%d/%m/%Y"
+
+        self.Monthly_Schedule = PaymentScheduleHandler(self.valuation_date,self.end_date,"monthly",self.date_format)
+
+    def test_intermediary_monthly(self):
+        """test get_intermediary_dates"""
+
+        expected_result = "02/02/2025"
+        result = self.Monthly_Schedule.get_intermediary_dates()
+        self.assertEqual(result[1], expected_result)
 
 if __name__ == "__main__":
     unittest.main()

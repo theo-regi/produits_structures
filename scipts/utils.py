@@ -105,10 +105,11 @@ class Maturity_handler:
         return self.__convention_handler(valuation_date, end_date)
 
 class PaymentScheduleHandler:
-    def __init__(self, valutation_date: str, end_date:str, periodicity: str) -> None:
-        self.__valuation_date = valutation_date
+    def __init__(self, valuation_date: str, end_date:str, periodicity: str,date_format :str) -> None:
+        self.__valuation_date = valuation_date
         self.__end_date = end_date
         self.__periodicity = periodicity
+        self.__date_format = date_format
         pass
 
     def build_schedule(self, format_date: str, convention: str, rolling_convention: str, market: str) -> tuple:
@@ -126,24 +127,26 @@ class PaymentScheduleHandler:
 
         return tuple(list_year_fractions)
 
-    def __get_intermediary_dates(self) -> list:
+    def get_intermediary_dates(self) -> list:
         """Build a dates list with all intermediary dates between start and end based on periodicity."""
         """Supported periodicity: monthly, quaterly, semi-annually, annually."""
         list_dates = [self.__valuation_date]
-        count_date = self.__valuation_date
-        while count_date < self.__end_date:
+        #count_date = self.__valuation_date
+        count_date = dt.strptime(self.__valuation_date, self.__date_format)
+        end_date = dt.strptime(self.__end_date,self.__date_format)
+        while count_date < end_date:
             if self.__periodicity == "monthly":
                 count_date += relativedelta(months=1)
-                list_dates.append(count_date)
+                list_dates.append(count_date.strftime(self.__date_format))
             elif self.__periodicity == "quaterly":
                 count_date += relativedelta(months=3)
-                list_dates.append(count_date)
+                list_dates.append(count_date.strftime(self.__date_format))
             elif self.__periodicity == "semi-annually":
                 count_date += relativedelta(months=6)
-                list_dates.append(count_date)
+                list_dates.append(count_date.strftime(self.__date_format))
             elif self.__periodicity == "annually":
                 count_date += relativedelta(years=1)
-                list_dates.append(count_date)
+                list_dates.append(count_date.strftime(self.__date_format))
             else:
                 raise ValueError(f"Entered periodicity {self.__periodicity} is not supported. Supported periodicity: monthly, quaterly, semi-annually, annually.")
         
@@ -153,5 +156,20 @@ class PaymentScheduleHandler:
     
 
 #Classe de rate et courbe de taux
+
+class Rates_curve:
+    def __init__(self,flat_rate : float,path_rate : str,frequency :str):
+        self.__flat_rate = flat_rate
+        self.__path_rate = path_rate
+
+    #def ZC_lineaire(self,flat_rate,frequency):
+     #   if frequency =='3M':
+            
+
+
+
+
+
+
 
 #Classe de vol
