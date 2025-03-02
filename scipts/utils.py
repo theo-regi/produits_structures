@@ -6,8 +6,18 @@ import holidays
 #----------------------------Script pour implémenter les classes utilitaires----------------------------
 #-------------------------------------------------------------------------------------------------------
 
-#Classe maturité
+#Maturity handler :: convention, format, rolling convention, market -> year fraction
 class Maturity_handler:
+    """
+    Classe pour gérer les différents problèmes de maturités -> renvoie une year_fraction
+        Prend en input: - une convention de day count (30/360, etc) en string
+                        - un format de date (%d/%m/%Y = 01/01/2025)
+                        - une rolling convention = comment on gère les jours de marchés fermés (Modified Following, etc)
+                        - un marché (UE = XECB, US = XNYS, Brésil/Lattam = BVMF, UK = IFEU), (ce n'est pas optimal car pas sur que les jours fériés soient corrects, il faudrait une fonction bloomberg, mais inaccessible hors de l'université)
+
+        - pour l'utiliser, appeller get_year_fraction, avec en input, une date proche, une date éloignée.
+        -> renvoie un float = nombres d'années, 1.49 = +/- 1 ans et 6 mois (fonction des jours fériés, convention, etc).
+    """
     def __init__(self, convention: str, format_date: str, rolling_convention: str, market: str) -> None:
         self.__convention = convention
         self.__format_date = format_date
@@ -104,7 +114,19 @@ class Maturity_handler:
             end_date = self.__apply_rolling_convention(end_date)
         return self.__convention_handler(valuation_date, end_date)
 
+#Payment Schedule Handler:: first date of the schedule, last date of the schedule, periodicity of dates between, date format.
 class PaymentScheduleHandler:
+    """
+    Classe pour générer des échéanciers de paiements entre une date de départ et une date de fin
+    Inputs: - valuation_date: date de départ (exemple: aujourd'hui ou t+2 = convention de marché)
+            - end_date: dernière date de l'échéancier = date du dernier paiement
+            - periodicity: temps entre deux paiements (monthly, quaterly, semi-annually, annually)
+            - date_format: format d'input pour les valuation_date et end_date (exemple: %d/%m/%Y)
+
+    utilisation: créer un payement scheduler avec les inputs, appeller build_schedule avec les conventions utilisées + marché.
+    -> renvoie un tuple d'échéances intermédiaires (ex:(0.5, 1, 1.5, 2, 2.5, 3) pour 3 ans paiement semi-annuel)
+        ajusté aux jours de marchés fermés + convention de calculs.
+    """
     def __init__(self, valuation_date: str, end_date:str, periodicity: str, date_format :str) -> None:
         self.__valuation_date = valuation_date
         self.__end_date = end_date
@@ -152,10 +174,7 @@ class PaymentScheduleHandler:
         list_dates.append(self.__end_date)
         return list_dates
         
-    
-
 #Classe de rate et courbe de taux
-
 class Rates_curve:
     def __init__(self,flat_rate : float,path_rate : str,frequency :str):
         self.__flat_rate = flat_rate
