@@ -168,6 +168,12 @@ class TestRatesCurve(unittest.TestCase):
         result= curve.quadratic_interpol(liste).iloc[3]['Rate']
         self.assertAlmostEqual(result, expected_result,places = 6)
 
+    def test_Nelson_Siegel(self):
+        liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
+        curve = Rates_curve(self.flat_rate,self.path_rate)
+        result =curve.Nelson_Siegel_interpol(360,liste)
+        self.assertFalse(result['Rate'].isna().any())
+
 
 if __name__ == "__main__":
     unittest.main()

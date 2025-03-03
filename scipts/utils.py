@@ -4,6 +4,8 @@ from dateutil.relativedelta import relativedelta
 import holidays
 import pandas as pd
 import numpy as np
+
+from functions import optimize_nelson_siegel,nelson_siegel
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes utilitaires----------------------------
 #-------------------------------------------------------------------------------------------------------
@@ -194,7 +196,6 @@ class Rates_curve:
 
     def year_fraction_data(self,convention):
         factor_map = {'D': 1, 'W': 7, 'M': 30, 'Y': convention}
-
         self.__data_rate['Year_fraction'] = self.__data_rate['Pillar'].str[:-1].astype(float) * self.__data_rate['Pillar'].str[-1].map(factor_map) / convention
         self.__data_rate['Year_fraction'] = self.__data_rate['Year_fraction'].round(6)
         
@@ -204,10 +205,8 @@ class Rates_curve:
         df= pd.DataFrame({"Year_fraction": product_year_fraction})
         df["Year_fraction"]=df["Year_fraction"].round(6)
         df = df[~df["Year_fraction"].isin(self.year_fraction_data(360)["Year_fraction"])]
-
         self.__data_rate = pd.merge(self.year_fraction_data(360),df,how='outer')
         self.__data_rate = self.__data_rate.sort_values(by='Year_fraction').reset_index(drop=True)
-
         return self.__data_rate
 
     def linear_interpol(self,product_year_fraction):
@@ -219,6 +218,16 @@ class Rates_curve:
         self.__data_rate = self.attribute_rates_curve(product_year_fraction)
         self.__data_rate["Rate"] = self.__data_rate["Rate"].interpolate(method='quadratic')
         print(self.__data_rate)
+        return self.__data_rate
+
+    def Nelson_Siegel_interpol(self,convention,product_year_fraction):
+        self.__data_rate = self.year_fraction_data(convention)
+        Nelson_param = optimize_nelson_siegel(self.__data_rate["Year_fraction"],self.__data_rate["Rate"])
+        print(Nelson_param) 
+        self.__data_rate = self.attribute_rates_curve(product_year_fraction)
+        for rates in self.__data_rate["Year_fraction"]:
+            if self.__data_rate.loc[self.__data_rate["Year_fraction"]==rates,"Rate"].isna().any():
+                self.__data_rate.loc[self.__data_rate["Year_fraction"]==rates,"Rate"] = nelson_siegel(rates, Nelson_param[0], Nelson_param[1], Nelson_param[2], Nelson_param[3])
         return self.__data_rate
 
 
