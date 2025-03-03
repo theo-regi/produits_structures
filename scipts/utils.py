@@ -223,3 +223,20 @@ class Rates_curve:
 
 
 #Classe de vol
+
+#Exemple en dict
+if __name__ == "__main__":
+    # Sample data
+    year_fractions = [0.5, 1, 2, 5]  # Time in years
+    discount_factors = [0.98, 0.95, 0.90, 0.80]  # Corresponding discount factors
+    rates = [0.04, 0.05, 0.06, 0.08]  # Corresponding rates
+
+    # Construct the dictionary
+    rate_curve = {
+        yf: {"discount_factor": df, "rate": r}
+        for yf, df, r in zip(year_fractions, discount_factors, rates)
+    }
+
+    # Print the structured dictionary
+    print(rate_curve)
+    print(rate_curve[0.5]["discount_factor"])

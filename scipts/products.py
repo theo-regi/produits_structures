@@ -115,14 +115,43 @@ class ZCBond():
 #-------------------------------------------------------------------------------------------------------
 #____________________________Classe abstraite pour les produits d'Income________________________________
 class FixedIncomeProduct(ABC):
-    def __init__(self, notional: float=100) -> None:
+    """
+    Abstract class for fixed-income products:
+
+    Input:
+    - forward rates curve (dict, non optionnal)
+    - start date (string, non optionnal)
+    - end date (string, non optionnal)
+    - paiments frequency (string, non optionnal)
+    - day count convention (string, optionnal, equal to 30/360 if not provided)
+    - rolling convention (string, optionnal, equal to Modified Following if not provided)
+    - notional exchange (Bool, optionnal equal False if not provided, for bonds = True, for swaps = False)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
+    - notional (float, optionnal, will quote in percent if not provided)
+
+    Abstract class to build the different types of legs for fixed income instruments.
+    """
+    def __init__(self, forward_curve:dict, start_date:str, end_date:str,
+                 paiement_freq:str, day_count:str=30/360, rolling_conv:str="Modified Following",
+                 discounting_curve:dict=None, notional:float=100) -> None:
+        
+        self.__forward_curve=forward_curve
+        self.__start_date=start_date
+        self.__end_date=end_date
+        self.__paiement_freq=paiement_freq
+        self.__day_count=day_count
+        self.__rolling_conv=rolling_conv
+        self.__discounting_curve=discounting_curve
         self.__notional = notional
     
+        #We will build a dictionnary with all cashflows' NPV and pv01 for each t as a result.
+
     @abstractmethod
     def calculate_npv(self) -> float:
         """
         Returns the product NPV as float
         """
+        #Should make the sum of the nvp of all intermediaries cashflows
         pass
 
     @abstractmethod
@@ -153,11 +182,14 @@ class FixedIncomeProduct(ABC):
         """
         pass
 
+    
+
+
 """
 1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
 - Float et Fix leg, car ce seront des bases pour construire le rest, il faut un input échange de notionnel (yes/no)
-- Fixed bond(c'est une leg fix avec de l'échange de notionnel à la fin)
-- FRNs (pareil que fixed bond mais en float)
+    - Fixed bond(c'est une leg fix avec de l'échange de notionnel à la fin)
+    - FRNs (pareil que fixed bond mais en float)
 - Caps / floors
 - Options de call / put
 
