@@ -233,6 +233,24 @@ class Rates_curve:
 
 #Classe de vol
 
+#Helper to get the market from the currency.
+def get_market(currency):
+    if currency == "EUR":
+        return "XECB"
+    elif currency == "USD":
+        return "XNYS"
+    elif currency == "GBP":
+        return "IFEU"
+    elif currency == "BRL":
+        return "BVMF"
+    else:
+        raise ValueError(f"Currency {currency} is not supported ! Choose: EUR, USD, GBP, BRL")
+
+#Helper to calculate the yield of a fixed-income product.
+def calculate_yield(cashflows:dict) -> float:
+    """Calculate the yield of a fixed-income product based on its cashflows."""
+    pass
+
 #Exemple en dict
 if __name__ == "__main__":
     # Sample data

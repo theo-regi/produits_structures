@@ -1,5 +1,7 @@
 import numpy as np
 from abc import ABC, abstractmethod
+from utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
+import utils
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes de produits----------------------------
@@ -125,41 +127,51 @@ class FixedIncomeProduct(ABC):
     - paiments frequency (string, non optionnal)
     - day count convention (string, optionnal, equal to 30/360 if not provided)
     - rolling convention (string, optionnal, equal to Modified Following if not provided)
-    - notional exchange (Bool, optionnal equal False if not provided, for bonds = True, for swaps = False)
     - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
     - notional (float, optionnal, will quote in percent if not provided)
 
     Abstract class to build the different types of legs for fixed income instruments.
+    For fixed income leg, rate_curve will be a flat rate curve.
     """
-    def __init__(self, forward_curve:dict, start_date:str, end_date:str,
-                 paiement_freq:str, day_count:str=30/360, rolling_conv:str="Modified Following",
+    def __init__(self, rate_curve:dict, start_date:str, end_date:str,
+                 paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
                  discounting_curve:dict=None, notional:float=100) -> None:
         
-        self.__forward_curve=forward_curve
+        self.__rate_curve=rate_curve
         self.__start_date=start_date
         self.__end_date=end_date
         self.__paiement_freq=paiement_freq
+        self.__currency=currency
         self.__day_count=day_count
         self.__rolling_conv=rolling_conv
-        self.__discounting_curve=discounting_curve
+        if discounting_curve is None:
+            self.__discounting_curve=rate_curve
+        else:
+            self.__discounting_curve=discounting_curve
         self.__notional = notional
     
-        #We will build a dictionnary with all cashflows' NPV and pv01 for each t as a result.
+        self.__cashflows = {}
+        self.__paiments_schedule = \
+            PaymentScheduleHandler(self.__start_date, self.__end_date,
+            self.__paiement_freq, self.__day_count,self.__rolling_conv).build_schedule(\
+            convention=self.__day_count, rolling_convention=self.__rolling_conv, market=\
+            utils.get_market(currency=self.__currency))
+        
 
     @abstractmethod
     def calculate_npv(self) -> float:
         """
         Returns the product NPV as float
         """
-        #Should make the sum of the nvp of all intermediaries cashflows
-        pass
+        return sum(entry["NPV"] for entry in self.__cashflows.values())
 
     @abstractmethod
     def calculate_duration(self) -> float:
         """
         Returns duration of the product
         """
-        pass
+        duration_ti = sum(entry["NPV"] * entry["Year_Fraction"] for entry in self.__cashflows.values())
+        return duration_ti / self.calculate_npv()
 
     @abstractmethod
     def calculate_sensitivity(self) -> float:
@@ -180,10 +192,142 @@ class FixedIncomeProduct(ABC):
         """
         Returns pov01 of the product
         """
+        return sum(entry["PV01"] for entry in self.__cashflows.values())
+  
+class FixedLeg(FixedIncomeProduct):
+    """
+    Class pour une leg fixe, on va pouvoir calculer le npv, duration, convexity, pv01, etc.
+    Utilisée pour les swaps et fixed bonds.
+
+    Input:
+    - forward rates curve (dict, non optionnal)
+    - start date (string, non optionnal)
+    - end date (string, non optionnal)
+    - paiments frequency (string, non optionnal)
+    - day count convention (string, optionnal, equal to 30/360 if not provided)
+    - rolling convention (string, optionnal, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
+    - notional (float, optionnal, will quote in percent if not provided)
+
+    Returns: class with functions of NPV, duration, convexity, pv01, etc.
+    For fixed income leg, rate_curve will be a flat rate curve.
+    For bonds, notional exchange will be True in build_cashflows.
+    """
+    def __init__(self, rate_curve:dict, start_date:str, end_date:str,
+                 paiement_freq:str, day_count:str=30/360, rolling_conv:str="Modified Following",
+                 discounting_curve:dict=None, notional:float=100) -> None:
+        super().__init__(rate_curve, start_date, end_date, paiement_freq, day_count, rolling_conv, discounting_curve, notional)
         pass
 
-    
+    def calculate_npv(self) -> float:
+        """
+        Calculate the NPV of the fixed leg.
+        """
+        return super().calculate_npv()
 
+    def calculate_duration(self) -> float:
+        """
+        Calculate the duration of the fixed leg.
+        """
+        return super().calculate_duration()
+
+    def calculate_sensitivity(self) -> float:
+        """
+        Calculate the sensitivity of the fixed leg.
+        """
+        new_rate = self.__rate_curve[self.__end_date] + 0.01
+        return self.calculate_duration() / (1 + new_rate)
+
+    def calculate_convexity(self) -> float:
+        """
+        Calculate the convexity of the fixed leg.
+        """
+        pass
+
+    def calculate_pv01(self) -> float:
+        """
+        Calculate the PV01 of the fixed leg.
+        """
+        return super().calculate_pv01()
+    
+    def build_cashflows(self, exchange_notionnal:str=False) -> dict:
+        """
+        Build the paiements schedule for the fixed leg.
+        Input:
+        - exchange_notionnal (string, optionnal, equal to False if not provided), provide True for bonds.
+        """
+        for date in self.__paiments_schedule:
+            if date != self.__end_date:
+                npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date]
+                pv01 = npv * 1/10000
+                self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
+            else:
+                if exchange_notionnal:
+                    npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date] + self.__notional * self.__discounting_curve[date]
+                    pv01 = npv * 1/10000
+                    self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
+                else:
+                    npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date]
+                    pv01 = npv * 1/10000
+                    self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
+        pass
+
+    def calculate_yield(self) -> float:
+        """
+        Calculate the yield of the fixed leg.
+        """
+        pass
+
+class FloatLeg(FixedIncomeProduct):
+    """
+    Class pour une leg flottante, on va pouvoir calculer le npv, duration, convexity, pv01, etc.
+    Utilisée pour les swaps et FRNs.
+
+    Input:
+    - forward rates curve (dict, non optionnal)
+    - start date (string, non optionnal)
+    - end date (string, non optionnal)
+    - paiments frequency (string, non optionnal)
+    - day count convention (string, optionnal, equal to 30/360 if not provided)
+    - rolling convention (string, optionnal, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
+    - notional (float, optionnal, will quote in percent if not provided)
+    """
+    def __init__(self, rate_curve:dict, start_date:str, end_date:str,
+                 paiement_freq:str, day_count:str=30/360, rolling_conv:str="Modified Following",
+                 discounting_curve:dict=None, notional:float=100) -> None:
+        super().__init__(rate_curve, start_date, end_date, paiement_freq, day_count, rolling_conv, discounting_curve, notional)
+        pass
+    
+    def calculate_npv(self) -> float:
+        """
+        Calculate the NPV of the float leg.
+        """
+        return super().calculate_npv()
+    
+    def calculate_duration(self) -> float:
+        """
+        Calculate the duration of the float leg.
+        """
+        return super().calculate_duration()
+    
+    def calculate_sensitivity(self) -> float:
+        """
+        Calculate the sensitivity of the float leg.
+        """
+        pass
+
+    def calculate_convexity(self) -> float:
+        """
+        Calculate the convexity of the float leg.
+        """
+        pass
+
+    def calculate_pv01(self) -> float:
+        """
+        Calculate the PV01 of the float leg.
+        """
+        return super().calculate_pv01()
 
 """
 1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
