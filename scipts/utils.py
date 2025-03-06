@@ -186,7 +186,7 @@ class PaymentScheduleHandler:
         
 #Classe de rate et courbe de taux
 class Rates_curve:
-    def __init__(self,flat_rate:float, path_rate:str):
+    def __init__(self,path_rate:str, flat_rate:float=None):
         self.__flat_rate = flat_rate
         self.__data_rate = pd.read_csv(path_rate,sep=";")
         pass
@@ -236,6 +236,28 @@ class Rates_curve:
         return self.__data_rate
 
 
+class Zero_curve:
+    def __init__(self,rate_curve:Rates_curve, valuation_date: str=None):
+        self.__data_rate = rate_curve.get_data_rate()
+        self.__spot_rate = self.__data_rate["Rate"].iloc[0]
+        self.__T0 = dt.strftime(dt.strptime(valuation_date, "%d/%m/%Y") + timedelta(days=1), "%d/%m/%Y")
+        self.__zero_curve = {}
+
+        self.__schedule_money_market = PaymentScheduleHandler(self.__T0,)
+        pass
+
+    def calculate_zc_rates(self):
+        
+        # Calcul des taux zéro-coupon et DF par induction
+        for i in range(1, len(maturities)):
+            if maturities[i] <= 0.25:
+                zero_curve[maturities[i]] = 1/maturities[i] * np.log(1+self.__data_rate["Rate"].iloc[i] * maturities[i])
+            elif maturities[i] <= 2 and maturities[i] > 0.25:
+                zero_curve[maturities[i]] = 
+           
+
+        print(zero_curve)
+        pass
 #Classe de vol
 
 #Helper to get the market from the currency.
@@ -256,19 +278,8 @@ def calculate_yield(cashflows:dict) -> float:
     """Calculate the yield of a fixed-income product based on its cashflows."""
     pass
 
-#Exemple en dict
 if __name__ == "__main__":
-    # Sample data
-    year_fractions = [0.5, 1, 2, 5]  # Time in years
-    discount_factors = [0.98, 0.95, 0.90, 0.80]  # Corresponding discount factors
-    rates = [0.04, 0.05, 0.06, 0.08]  # Corresponding rates
-
-    # Construct the dictionary
-    rate_curve = {
-        yf: {"discount_factor": df, "rate": r}
-        for yf, df, r in zip(year_fractions, discount_factors, rates)
-    }
-
-    # Print the structured dictionary
-    print(rate_curve)
-    print(rate_curve[0.5]["discount_factor"])
+    rate_curve = Rates_curve("RateCurve.csv")
+    liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
+    forward_curve = rate_curve.quadratic_interpol(liste)
+    rate_curve.calculate_zc_rates()
