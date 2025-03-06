@@ -276,7 +276,7 @@ class FixedLeg(FixedIncomeProduct):
         """
         Calculate the yield of the fixed leg.
         """
-        pass
+        return utils.calculate_yield(self.__cashflows)
 
 class FloatLeg(FixedIncomeProduct):
     """
