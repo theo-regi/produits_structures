@@ -149,7 +149,7 @@ class TestRatesCurve(unittest.TestCase):
         self.path_rate = "RateCurve.csv"
     
     def test_linear_interpol(self):
-        curve = Rates_curve(self.path_rate,self.flat_rate)
+        curve = Rates_curve(self.path_rate, self.flat_rate)
 
         #On fait le test sur le taux 2 Mois pour voir si ça fonctionne 
         liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
@@ -159,7 +159,7 @@ class TestRatesCurve(unittest.TestCase):
         self.assertAlmostEqual(result, expected_result,places = 6)
 
     def test_quadratic_interpol(self):
-        curve = Rates_curve(self.path_rate,self.flat_rate)
+        curve = Rates_curve(self.path_rate, self.flat_rate)
 
         #On fait le test sur le taux 2 Mois pour voir si ça fonctionne 
         liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
@@ -170,15 +170,28 @@ class TestRatesCurve(unittest.TestCase):
 
     def test_Nelson_Siegel(self):
         liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
-        curve = Rates_curve(self.path_rate,self.flat_rate)
+        curve = Rates_curve(self.path_rate, self.flat_rate)
         result =curve.Nelson_Siegel_interpol(360,liste)
         self.assertFalse(result['Rate'].isna().any())
 
     def test_flat_rate(self):
-        curve = Rates_curve(self.path_rate,self.flat_rate)
+        curve = Rates_curve(self.path_rate, self.flat_rate)
         liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
         result = curve.flat_rate(liste)
         self.assertEqual(result['Rate'].iloc[0],0.025)
+
+    def test_forward_rate(self):
+        curve = Rates_curve(self.path_rate, self.flat_rate)
+        liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
+        result = curve.forward_rate(liste,'Quadratic')
+        self.assertFalse(result['Forward_rate'][1:].isna().any())
+
+    def test_create_product_rate_curve(self):
+        curve = Rates_curve(self.path_rate, self.flat_rate)
+        liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
+        liste = [round(x, 6) for x in liste] 
+        result = curve.create_product_rate_curve(liste,'Quadratic')
+        self.assertFalse(result['Rate'].isna().any())
 
 if __name__ == "__main__":
     unittest.main()
