@@ -2,6 +2,7 @@ import numpy as np
 
 import unittest
 from products import ZCBond
+from products import FixedLeg
 
 class TestZCBond(unittest.TestCase):
     def setUp(self):
@@ -79,6 +80,58 @@ class TestZCBond(unittest.TestCase):
         """Test YTM with zero maturity should raise an error"""
         with self.assertRaises(ValueError):
             self.bond.get_ytm(90, 0)
+
+class TestFixedLeg(unittest.TestCase):
+    def setUp(self):
+        """Initialize a FixedLeg with a default nominal value"""
+        rate_curve = {0.5: 0.02, 1: 0.03, 1.5: 0.04, 2: 0.05, 2.5: 0.06, 3: 0.07, 3.5: 0.08, 4: 0.09, 4.5: 0.10, 5: 0.11}
+        self.fixed_leg = FixedLeg(rate_curve, "06/03/2025", "06/03/2030", "Annualy", "30/360", "EUR", "Modified Following", None, 100, True)
+
+    def test_npv_from_df(self):
+        """Test NPV calculation using a discount factor (0.95) nominal is not given (=100)"""
+        self.assertEqual(self.fixed_leg.get_npv_from_df(0.95), 95)
+
+    def test_npv_from_rate(self):
+        """Test NPV calculation using rate and maturity"""
+        rate, maturity = 0.05, 5
+        expected_npv = 100 * (1 - (1 + rate) ** -maturity) / rate
+        self.assertEqual(self.fixed_leg.get_npv_from_rate(rate, maturity), expected_npv)
+
+    def test_discount_factor_from_rate(self):
+        """Test discount factor calculation"""
+        rate, maturity = 0.04, 3
+        expected_df = (1 - (1 + rate) ** -maturity) / rate
+        self.assertEqual(self.fixed_leg.get_discount_factor_from_rate(rate, maturity), expected_df)
+
+    def test_get_rate(self):
+        """Test rate calculation from discount factor"""
+        discount_factor, maturity = 0.90, 4
+        expected_rate = (1 - discount_factor * maturity) / (discount_factor * maturity)
+        self.assertEqual(self.fixed_leg.get_rate(discount_factor, maturity), expected_rate)
+
+    def test_get_duration_macaulay(self):
+        """Test Macaulay duration calculation"""
+        maturity = 7
+        expected_duration = maturity
+        self.assertEqual(self.fixed_leg.get_duration_macaulay(maturity), expected_duration)
+
+    def test_get_modified_duration(self):
+        """Test Modified Duration calculation"""
+        market_price, maturity = 85, 4
+        rate = (1 - market_price / 100) / maturity
+        expected_mod_duration = (1 - (1 + rate) ** -maturity) / rate / (1 + rate)
+        self.assertEqual(self.fixed_leg.get_modified_duration(market_price, maturity), expected_mod_duration)
+
+    def test_get_sensitivity(self):
+        """Test Sensitivity calculation"""
+        new_rate, maturity = 0.03, 6
+        expected_sensitivity = maturity / (1 + new_rate)
+        self.assertEqual(self.fixed_leg.get_sensitivity(new_rate, maturity), expected_sensitivity)
+
+    def test_get_convexity(self):
+        """Test Convexity calculation"""
+        maturity
+
 
 if __name__ == "__main__":
     unittest.main()

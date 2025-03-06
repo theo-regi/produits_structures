@@ -133,9 +133,9 @@ class FixedIncomeProduct(ABC):
     Abstract class to build the different types of legs for fixed income instruments.
     For fixed income leg, rate_curve will be a flat rate curve.
     """
-    def __init__(self, rate_curve:dict, start_date:str, end_date:str,
+    def __init__(self, rate_curve, start_date:str, end_date:str,
                  paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve:dict=None, notional:float=100) -> None:
+                 discounting_curve=None, notional:float=100) -> None:
         
         self.__rate_curve=rate_curve
         self.__start_date=start_date
@@ -193,7 +193,8 @@ class FixedIncomeProduct(ABC):
         Returns pov01 of the product
         """
         return sum(entry["PV01"] for entry in self.__cashflows.values())
-  
+
+#To adapt based on curve formats  
 class FixedLeg(FixedIncomeProduct):
     """
     Class pour une leg fixe, on va pouvoir calculer le npv, duration, convexity, pv01, etc.
@@ -213,10 +214,11 @@ class FixedLeg(FixedIncomeProduct):
     For fixed income leg, rate_curve will be a flat rate curve.
     For bonds, notional exchange will be True in build_cashflows.
     """
-    def __init__(self, rate_curve:dict, start_date:str, end_date:str,
-                 paiement_freq:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve:dict=None, notional:float=100) -> None:
+    def __init__(self, rate_curve, start_date:str, end_date:str,
+                 paiement_freq:str, day_count:str=30/360, currency: str="EUR", rolling_conv:str="Modified Following",
+                 discounting_curve=None, notional:float=100, exchange_notional: bool=True) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, day_count, rolling_conv, discounting_curve, notional)
+        self.__exchange_notional = exchange_notional
         pass
 
     def calculate_npv(self) -> float:
@@ -250,19 +252,20 @@ class FixedLeg(FixedIncomeProduct):
         """
         return super().calculate_pv01()
     
-    def build_cashflows(self, exchange_notionnal:str=False) -> dict:
+    def build_cashflows(self) -> dict:
         """
         Build the paiements schedule for the fixed leg.
         Input:
         - exchange_notionnal (string, optionnal, equal to False if not provided), provide True for bonds.
         """
+        self.__rate_curve = {}
         for date in self.__paiments_schedule:
             if date != self.__end_date:
                 npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date]
                 pv01 = npv * 1/10000
                 self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
             else:
-                if exchange_notionnal:
+                if self.__exchange_notional:
                     npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date] + self.__notional * self.__discounting_curve[date]
                     pv01 = npv * 1/10000
                     self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
