@@ -230,6 +230,11 @@ class Rates_curve:
                 self.__data_rate.loc[self.__data_rate["Year_fraction"]==rates,"Rate"] = nelson_siegel(rates, Nelson_param[0], Nelson_param[1], Nelson_param[2], Nelson_param[3])
         return self.__data_rate
 
+    def flat_rate(self,product_year_fraction):
+        self.__data_rate = self.attribute_rates_curve(product_year_fraction)
+        self.__data_rate["Rate"] = self.__flat_rate
+        return self.__data_rate
+
 
 #Classe de vol
 

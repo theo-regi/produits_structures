@@ -174,6 +174,11 @@ class TestRatesCurve(unittest.TestCase):
         result =curve.Nelson_Siegel_interpol(360,liste)
         self.assertFalse(result['Rate'].isna().any())
 
+    def test_flat_rate(self):
+        curve = Rates_curve(self.flat_rate,self.path_rate)
+        liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
+        result = curve.flat_rate(liste)
+        self.assertEqual(result['Rate'].iloc[0],0.025)
 
 if __name__ == "__main__":
     unittest.main()
