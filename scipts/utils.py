@@ -217,7 +217,6 @@ class Rates_curve:
     def quadratic_interpol(self,product_year_fraction):
         self.__data_rate = self.attribute_rates_curve(product_year_fraction)
         self.__data_rate["Rate"] = self.__data_rate["Rate"].interpolate(method='quadratic')
-        print(self.__data_rate)
         return self.__data_rate
 
     def Nelson_Siegel_interpol(self,convention,product_year_fraction):
@@ -235,7 +234,29 @@ class Rates_curve:
         self.__data_rate["Rate"] = self.__flat_rate
         return self.__data_rate
 
-
+    def forward_rate(self,product_year_fraction,type_interpol):
+        if type_interpol == "Linear":
+            self.__data_rate = self.linear_interpol(product_year_fraction)
+        if type_interpol == "Quadratic":
+            self.__data_rate = self.quadratic_interpol(product_year_fraction)
+        if type_interpol == "Nelson_Siegel":
+            self.__data_rate = self.Nelson_Siegel_interpol(360,product_year_fraction)
+        if type_interpol == "Flat":
+            self.__data_rate = self.flat_rate(product_year_fraction)
+        for i in range(len(self.__data_rate) - 1):
+            year_fraction = self.__data_rate["Year_fraction"].iloc[i]
+            next_year_fraction = self.__data_rate["Year_fraction"].iloc[i + 1]
+            rate = self.__data_rate["Rate"].iloc[i]
+            next_rate = self.__data_rate["Rate"].iloc[i + 1]
+            self.__data_rate.at[i+1, "Forward_rate"] = ((((1 + next_rate) ** next_year_fraction) / ((1 + rate) ** year_fraction)) ** (1 / (next_year_fraction - year_fraction))) - 1
+        return self.__data_rate
+    
+    def create_product_rate_curve(self,product_year_fraction,type_interpol):
+        self.__data_rate = self.forward_rate(product_year_fraction,type_interpol)
+        curve_rate_product = self.__data_rate[self.__data_rate["Year_fraction"].isin(product_year_fraction)]
+        print(curve_rate_product)
+        return curve_rate_product
+    
 class Zero_curve:
     def __init__(self,rate_curve:Rates_curve, valuation_date: str=None):
         self.__data_rate = rate_curve.get_data_rate()
@@ -246,7 +267,7 @@ class Zero_curve:
         self.__schedule_money_market = PaymentScheduleHandler(self.__T0,)
         pass
 
-    def calculate_zc_rates(self):
+    '''def calculate_zc_rates(self):
         
         # Calcul des taux zéro-coupon et DF par induction
         for i in range(1, len(maturities)):
@@ -257,7 +278,7 @@ class Zero_curve:
            
 
         print(zero_curve)
-        pass
+        pass'''
 #Classe de vol
 
 #Helper to get the market from the currency.
