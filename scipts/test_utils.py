@@ -183,14 +183,14 @@ class TestRatesCurve(unittest.TestCase):
     def test_forward_rate(self):
         curve = Rates_curve(self.path_rate, self.flat_rate)
         liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
-        result = curve.forward_rate(liste)
+        result = curve.forward_rate(liste,'Quadratic')
         self.assertFalse(result['Forward_rate'][1:].isna().any())
 
     def test_create_product_rate_curve(self):
         curve = Rates_curve(self.path_rate, self.flat_rate)
         liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
         liste = [round(x, 6) for x in liste] 
-        result = curve.create_product_rate_curve(liste)
+        result = curve.create_product_rate_curve(liste,'Quadratic')
         self.assertFalse(result['Rate'].isna().any())
 
 if __name__ == "__main__":
