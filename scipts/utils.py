@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 import holidays
 import pandas as pd
 import numpy as np
+from scipy.optimize import fsolve
 
 from functions import optimize_nelson_siegel,nelson_siegel
 #-------------------------------------------------------------------------------------------------------
@@ -186,7 +187,7 @@ class PaymentScheduleHandler:
         
 #Classe de rate et courbe de taux
 class Rates_curve:
-    def __init__(self,path_rate:str, flat_rate:float=None):
+    def __init__(self, path_rate:str, flat_rate:float= None):
         self.__flat_rate = flat_rate
         self.__data_rate = pd.read_csv(path_rate,sep=";")
         pass
@@ -295,12 +296,16 @@ def get_market(currency):
         raise ValueError(f"Currency {currency} is not supported ! Choose: EUR, USD, GBP, BRL")
 
 #Helper to calculate the yield of a fixed-income product.
-def calculate_yield(cashflows:dict) -> float:
-    """Calculate the yield of a fixed-income product based on its cashflows."""
-    pass
-
-if __name__ == "__main__":
-    rate_curve = Rates_curve("RateCurve.csv")
-    liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
-    forward_curve = rate_curve.quadratic_interpol(liste)
-    rate_curve.calculate_zc_rates()
+def calculate_yield(cashflows: dict, initial_rate:float=0.05):
+    """
+    Solve for Yield to Maturity (YTM) given a dictionary of cashflows.
+    
+    :param cashflows: Dictionary where keys are time in years and values are cashflows.
+    :param initial_rate: Initial guess for YTM.
+    :return: Yield to Maturity (YTM)
+    """
+    def ytm(y):
+        return sum([cf / (1 + y) ** t for t, cf in cashflows.items()])
+    
+    ytm_solution = fsolve(ytm, initial_rate)[0]
+    return ytm_solution
