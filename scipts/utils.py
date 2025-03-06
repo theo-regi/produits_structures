@@ -257,29 +257,7 @@ class Rates_curve:
         curve_rate_product = self.__data_rate[self.__data_rate["Year_fraction"].isin(product_year_fraction)]
         print(curve_rate_product)
         return curve_rate_product
-    
-class Zero_curve:
-    def __init__(self,rate_curve:Rates_curve, valuation_date: str=None):
-        self.__data_rate = rate_curve.get_data_rate()
-        self.__spot_rate = self.__data_rate["Rate"].iloc[0]
-        self.__T0 = dt.strftime(dt.strptime(valuation_date, "%d/%m/%Y") + timedelta(days=1), "%d/%m/%Y")
-        self.__zero_curve = {}
 
-        self.__schedule_money_market = PaymentScheduleHandler(self.__T0,)
-        pass
-
-    '''def calculate_zc_rates(self):
-        
-        # Calcul des taux zéro-coupon et DF par induction
-        for i in range(1, len(maturities)):
-            if maturities[i] <= 0.25:
-                zero_curve[maturities[i]] = 1/maturities[i] * np.log(1+self.__data_rate["Rate"].iloc[i] * maturities[i])
-            elif maturities[i] <= 2 and maturities[i] > 0.25:
-                zero_curve[maturities[i]] = 
-           
-
-        print(zero_curve)
-        pass'''
 #Classe de vol
 
 #Helper to get the market from the currency.

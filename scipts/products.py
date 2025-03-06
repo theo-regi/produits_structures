@@ -135,43 +135,38 @@ class FixedIncomeProduct(ABC):
     """
     def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
                  paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve:Rates_curve=None, notional:float=100) -> None:
+                 discounting_curve:Rates_curve=None, notional:float=100, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
         
-        self.__rate_curve=rate_curve
-        self.__start_date=start_date
-        self.__end_date=end_date
-        self.__paiement_freq=paiement_freq
-        self.__currency=currency
-        self.__day_count=day_count
-        self.__rolling_conv=rolling_conv
-        if discounting_curve is None:
-            self.__discounting_curve=rate_curve
-        else:
-            self.__discounting_curve=discounting_curve
-        self.__notional = notional
-    
-        self.__cashflows = {}
-        self.__paiments_schedule = \
-            PaymentScheduleHandler(self.__start_date, self.__end_date,
-            self.__paiement_freq, self.__day_count,self.__rolling_conv).build_schedule(\
-            convention=self.__day_count, rolling_convention=self.__rolling_conv, market=\
-            utils.get_market(currency=self.__currency))
-        
-        self.__curve_rates = self.__rate_curve.year_fraction_data(self.__paiments_schedule)
+        self._rate_curve=rate_curve
+        self._start_date=start_date
+        self._end_date=end_date
+        self._paiement_freq=paiement_freq
+        self._currency=currency
+        self._day_count=day_count
+        self._rolling_conv=rolling_conv
+        self._notional = notional
+        self._format = format
+        self._cashflows = {}
+        self._exchange_notional = exchange_notional
+        self._paiments_schedule = \
+            PaymentScheduleHandler(self._start_date, self._end_date,
+            self._paiement_freq, self._format).build_schedule(\
+            convention=self._day_count, rolling_convention=self._rolling_conv, market=\
+            utils.get_market(currency=self._currency))
 
     @abstractmethod
     def calculate_npv(self) -> float:
         """
         Returns the product NPV as float
         """
-        return sum(entry["NPV"] for entry in self.__cashflows.values())
+        return sum(entry["NPV"] for entry in self._cashflows.values())
 
     @abstractmethod
     def calculate_duration(self) -> float:
         """
         Returns duration of the product
         """
-        duration_ti = sum(entry["NPV"] * entry["Year_Fraction"] for entry in self.__cashflows.values())
+        duration_ti = sum(entry["NPV"] * entry["Year_Fraction"] for entry in self._cashflows.values())
         return duration_ti / self.calculate_npv()
 
     @abstractmethod
@@ -193,7 +188,7 @@ class FixedIncomeProduct(ABC):
         """
         Returns pov01 of the product
         """
-        return sum(entry["PV01"] for entry in self.__cashflows.values())
+        return sum(entry["PV01"] for entry in self._cashflows.values())
 
 #To adapt based on curve formats  
 class FixedLeg(FixedIncomeProduct):
@@ -216,10 +211,21 @@ class FixedLeg(FixedIncomeProduct):
     For bonds, notional exchange will be True in build_cashflows.
     """
     def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
-                 paiement_freq:str, day_count:str=30/360, currency: str="EUR", rolling_conv:str="Modified Following",
-                 discounting_curve: Rates_curve=None, notional:float=100, exchange_notional: bool=True) -> None:
-        super().__init__(rate_curve, start_date, end_date, paiement_freq, day_count, rolling_conv, discounting_curve, notional)
-        self.__exchange_notional = exchange_notional
+                 paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
+                 discounting_curve:Rates_curve=None, notional:float=100, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
+        super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, format, interpol, exchange_notional)
+         
+        self._rates_c = self._rate_curve.create_product_rate_curve(self._paiments_schedule, "Flat")
+        if discounting_curve is None:
+            self._discountings=self._rates_c
+        else:
+            self._discountings=discounting_curve.create_product_rate_curve(self._paiments_schedule, interpol)
+        
+        self._ZC = ZCBond(self._notional)
+        self._rate_dict = dict(zip(self._rates_c["Year_fraction"], self._rates_c["Rate"]))
+        self._discount_dict = dict(zip(self._discountings["Year_fraction"], self._ZC.get_discount_factor_from_zcrate(self._discountings["Rate"]/100, self._discountings["Year_fraction"])))
+        print(self._discount_dict)
+        self.build_cashflows()
         pass
 
     def calculate_npv(self) -> float:
@@ -238,7 +244,7 @@ class FixedLeg(FixedIncomeProduct):
         """
         Calculate the sensitivity of the fixed leg.
         """
-        new_rate = self.__rate_curve[self.__end_date] + 0.01
+        new_rate = self._rate_curve[self._end_date] + 0.01
         return self.calculate_duration() / (1 + new_rate)
 
     def calculate_convexity(self) -> float:
@@ -259,28 +265,28 @@ class FixedLeg(FixedIncomeProduct):
         Input:
         - exchange_notionnal (string, optionnal, equal to False if not provided), provide True for bonds.
         """
-        self.__rate_curve = {}
-        for date in self.__paiments_schedule:
-            if date != self.__end_date:
-                npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date]
+        
+        for date in self._paiments_schedule:
+            if date != self._paiments_schedule[-1]:
+                npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date]
                 pv01 = npv * 1/10000
-                self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
+                self._cashflows[date] = {"NPV": npv, "PV01": pv01}
             else:
-                if self.__exchange_notional:
-                    npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date] + self.__notional * self.__discounting_curve[date]
+                if self._exchange_notional == True:
+                    npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date] + self._notional * self._discount_dict[date]
                     pv01 = npv * 1/10000
-                    self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
+                    self._cashflows[date] = {"NPV": npv, "PV01": pv01}
                 else:
-                    npv = self.__notional * self.__rate_curve[date] * self.__paiments_schedule[date]["Year_Fraction"] * self.__discounting_curve[date]
+                    npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date]
                     pv01 = npv * 1/10000
-                    self.__cashflows[date] = {"NPV": npv, "PV01": pv01}
+                    self._cashflows[date] = {"NPV": npv, "PV01": pv01}
         pass
 
     def calculate_yield(self) -> float:
         """
         Calculate the yield of the fixed leg.
         """
-        return utils.calculate_yield(self.__cashflows)
+        return utils.calculate_yield(self._cashflows)
 
 class FloatLeg(FixedIncomeProduct):
     """
@@ -297,10 +303,10 @@ class FloatLeg(FixedIncomeProduct):
     - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
     - notional (float, optionnal, will quote in percent if not provided)
     """
-    def __init__(self, rate_curve:Rates_curve, start_date:str, end_date:str,
-                 paiement_freq:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve:Rates_curve=None, notional:float=100) -> None:
-        super().__init__(rate_curve, start_date, end_date, paiement_freq, day_count, rolling_conv, discounting_curve, notional)
+    def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
+                 paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
+                 discounting_curve:Rates_curve=None, notional:float=100, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
+        super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional)
         pass
     
     def calculate_npv(self) -> float:
@@ -351,3 +357,9 @@ class FloatLeg(FixedIncomeProduct):
 -> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
     de valorisation / risque
 """
+
+if __name__ == "__main__":
+    rates = Rates_curve("RateCurve.csv", 6)
+    rates_df = Rates_curve("RateCurve.csv")
+    fl = FixedLeg(rates, "06/03/2025", "06/03/2030", "annually", "EUR", "30/360", "Modified Following", rates, 100, "%d/%m/%Y", "Nelson_Siegel", True)
+    print(fl.calculate_npv())
