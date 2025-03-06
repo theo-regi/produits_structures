@@ -157,8 +157,7 @@ class FixedIncomeProduct(ABC):
             convention=self.__day_count, rolling_convention=self.__rolling_conv, market=\
             utils.get_market(currency=self.__currency))
         
-        #Là tu peux appeler ta fonction de rate curve pour récupérer les taux de ta courbe de taux.
-        
+        self.__curve_rates = self.__rate_curve.year_fraction_data(self.__paiments_schedule)
 
     @abstractmethod
     def calculate_npv(self) -> float:
