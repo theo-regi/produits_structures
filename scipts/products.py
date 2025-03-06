@@ -133,9 +133,9 @@ class FixedIncomeProduct(ABC):
     Abstract class to build the different types of legs for fixed income instruments.
     For fixed income leg, rate_curve will be a flat rate curve.
     """
-    def __init__(self, rate_curve, start_date:str, end_date:str,
+    def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
                  paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve=None, notional:float=100) -> None:
+                 discounting_curve:Rates_curve=None, notional:float=100) -> None:
         
         self.__rate_curve=rate_curve
         self.__start_date=start_date
@@ -156,6 +156,8 @@ class FixedIncomeProduct(ABC):
             self.__paiement_freq, self.__day_count,self.__rolling_conv).build_schedule(\
             convention=self.__day_count, rolling_convention=self.__rolling_conv, market=\
             utils.get_market(currency=self.__currency))
+        
+        #Là tu peux appeler ta fonction de rate curve pour récupérer les taux de ta courbe de taux.
         
 
     @abstractmethod
@@ -214,9 +216,9 @@ class FixedLeg(FixedIncomeProduct):
     For fixed income leg, rate_curve will be a flat rate curve.
     For bonds, notional exchange will be True in build_cashflows.
     """
-    def __init__(self, rate_curve, start_date:str, end_date:str,
+    def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
                  paiement_freq:str, day_count:str=30/360, currency: str="EUR", rolling_conv:str="Modified Following",
-                 discounting_curve=None, notional:float=100, exchange_notional: bool=True) -> None:
+                 discounting_curve: Rates_curve=None, notional:float=100, exchange_notional: bool=True) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, day_count, rolling_conv, discounting_curve, notional)
         self.__exchange_notional = exchange_notional
         pass
@@ -296,9 +298,9 @@ class FloatLeg(FixedIncomeProduct):
     - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
     - notional (float, optionnal, will quote in percent if not provided)
     """
-    def __init__(self, rate_curve:dict, start_date:str, end_date:str,
+    def __init__(self, rate_curve:Rates_curve, start_date:str, end_date:str,
                  paiement_freq:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve:dict=None, notional:float=100) -> None:
+                 discounting_curve:Rates_curve=None, notional:float=100) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, day_count, rolling_conv, discounting_curve, notional)
         pass
     

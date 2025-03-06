@@ -1,5 +1,4 @@
 import numpy as np
-
 import unittest
 from products import ZCBond
 from products import FixedLeg
