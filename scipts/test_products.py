@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from products import ZCBond, FixedLeg
+from products import ZCBond, FixedLeg, FloatLeg
 from utils import Rates_curve
 
 class TestZCBond(unittest.TestCase):
@@ -85,7 +85,7 @@ class TestFixedLeg(unittest.TestCase):
         """Initialize a FixedLeg with a default nominal value"""
         rate_curve = Rates_curve("RateCurve.csv", 5)
         discount_curve = Rates_curve("RateCurve.csv")
-        self.fixed_leg = FixedLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, "%d/%m/%Y", "Nelson_Siegel", True)
+        self.fixed_leg = FixedLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, "%d/%m/%Y", "Nelson_Siegel", False)
 
     def test_npv(self):
         """Test NPV calculation using a flat curve and different discount curve, nominal = 100"""
@@ -116,6 +116,49 @@ class TestFixedLeg(unittest.TestCase):
         """Test Yield to Maturity calculation"""
         target_ytm = 0.023838427*100
         self.assertAlmostEqual(self.fixed_leg.calculate_yield(100), target_ytm, places=6)
+
+
+class TestFloatLeg(unittest.TestCase):
+    def setUp(self):
+        """Initialize a FloatLeg with a default nominal value"""
+        rate_curve = Rates_curve("RateCurve.csv")
+        discount_curve = Rates_curve("RateCurve.csv")
+        self.float_leg = FloatLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, "%d/%m/%Y", "Nelson_Siegel", False)
+
+
+    def test_npv(self):
+        """Test NPV calculation using a flat curve and different discount curve, nominal = 100"""
+        target = 99.89199964
+        self.assertAlmostEqual(self.float_leg.calculate_npv(), target, places=3)
+
+    def test_calculate_duration(self):
+        """Test Duration calculation"""
+        target_duration = 4.795958
+        self.assertAlmostEqual(self.float_leg.calculate_duration(), target_duration, places=6)
+
+    def test_calculate_sensitivity(self):
+        """Test Sensitivity calculation"""
+        target_sensitivity = 0.0
+        self.assertAlmostEqual(self.float_leg.calculate_sensitivity(), target_sensitivity, places=6)
+
+    def test_calculate_pv01(self):
+        """Test PV01 calculation"""
+        target_pv01 = 0.046687947
+        self.assertAlmostEqual(self.float_leg.calculate_pv01(), target_pv01, places=6)
+
+    def test_calculate_convexity(self): #TO DO (function not done in class)
+        """Test Convexity calculation"""
+        target_convexity = 0.0
+        self.assertAlmostEqual(self.float_leg.calculate_convexity(), target_convexity, places=6)
+
+    def test_yield(self):
+        """Test Yield to Maturity calculation"""
+        target_ytm = 0.0
+        self.assertAlmostEqual(self.float_leg.calculate_yield(100), target_ytm, places=6)
+
+
+
+
 
 if __name__ == "__main__":
     unittest.main()

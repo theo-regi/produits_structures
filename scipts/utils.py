@@ -190,6 +190,7 @@ class Rates_curve:
     def __init__(self, path_rate:str, flat_rate:float= None):
         self.__flat_rate = flat_rate
         self.__data_rate = pd.read_csv(path_rate,sep=";")
+        self.curve_rate_product = None
         pass
 
     def get_data_rate(self):
@@ -254,9 +255,14 @@ class Rates_curve:
     
     def create_product_rate_curve(self,product_year_fraction,type_interpol):
         self.__data_rate = self.forward_rate(product_year_fraction,type_interpol)
-        curve_rate_product = self.__data_rate[self.__data_rate["Year_fraction"].isin(product_year_fraction)]
-        print(curve_rate_product)
-        return curve_rate_product
+        self.curve_rate_product = self.__data_rate[self.__data_rate["Year_fraction"].isin(product_year_fraction)]
+        return self.curve_rate_product
+    
+    def shift_curve(self,product_year_fraction,type_interpol,shift):
+        self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
+        self.curve_rate_product['Forward_Rate']= self.curve_rate_product['Forward_Rate'] + shift
+        return self
+
 
 #Classe de vol
 
