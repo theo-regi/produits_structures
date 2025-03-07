@@ -248,12 +248,16 @@ class FixedLeg(FixedIncomeProduct):
 
         return self.calculate_duration() / (1 + new_rate)
 
-    def calculate_convexity(self) -> float:
+    def calculate_convexity(self, market_price:float) -> float:
         """
         Calculate the convexity of the fixed leg.
         """
-        pass
-
+        ytm = utils.calculate_yield(self._cashflows, market_price)
+        sum_c = sum([(t*(t+1) * cashflow["NPV"])/((1+ytm/100)**t) for t, cashflow in self._cashflows.items()]) 
+        print(sum_c)
+        print((market_price*((1+ytm/100)**2)))
+        return sum_c / (market_price*((1+ytm/100)**2))
+    
     def calculate_pv01(self) -> float:
         """
         Calculate the PV01 of the fixed leg.
