@@ -107,10 +107,10 @@ class TestFixedLeg(unittest.TestCase):
         target_pv01 = 0.046687947
         self.assertAlmostEqual(self.fixed_leg.calculate_pv01(), target_pv01, places=6)
 
-    def test_calculate_convexity(self): #TO DO (function not done in class)
+    def test_calculate_convexity(self):
         """Test Convexity calculation"""
-        target_convexity = 0.276067
-        self.assertAlmostEqual(self.fixed_leg.calculate_convexity(), target_convexity, places=6)
+        target_convexity = 25.1451101
+        self.assertAlmostEqual(self.fixed_leg.calculate_convexity(100), target_convexity, places=6)
 
     def test_yield(self):
         """Test Yield to Maturity calculation"""
