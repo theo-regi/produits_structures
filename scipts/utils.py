@@ -274,7 +274,7 @@ def get_market(currency):
         raise ValueError(f"Currency {currency} is not supported ! Choose: EUR, USD, GBP, BRL")
 
 #Helper to calculate the yield of a fixed-income product.
-def calculate_yield(cashflows: dict, initial_rate:float=0.05):
+def calculate_yield(cashflows: dict, market_price:float, initial_rate:float=0.05):
     """
     Solve for Yield to Maturity (YTM) given a dictionary of cashflows.
     
@@ -283,7 +283,7 @@ def calculate_yield(cashflows: dict, initial_rate:float=0.05):
     :return: Yield to Maturity (YTM)
     """
     def ytm(y):
-        return sum([cf / (1 + y) ** t for t, cf in cashflows.items()])
+        return sum([cf["NPV"] / (1 + y) ** t for t, cf in cashflows.items()]) - market_price
     
     ytm_solution = fsolve(ytm, initial_rate)[0]
-    return ytm_solution
+    return ytm_solution*100

@@ -160,13 +160,13 @@ class FixedIncomeProduct(ABC):
         Returns the product NPV as float
         """
         return sum(entry["NPV"] for entry in self._cashflows.values())
-
+    
     @abstractmethod
     def calculate_duration(self) -> float:
         """
         Returns duration of the product
         """
-        duration_ti = sum(entry["NPV"] * entry["Year_Fraction"] for entry in self._cashflows.values())
+        duration_ti = sum(value["NPV"] * key for key, value in self._cashflows.items())
         return duration_ti / self.calculate_npv()
 
     @abstractmethod
@@ -224,7 +224,6 @@ class FixedLeg(FixedIncomeProduct):
         self._ZC = ZCBond(self._notional)
         self._rate_dict = dict(zip(self._rates_c["Year_fraction"], self._rates_c["Rate"]))
         self._discount_dict = dict(zip(self._discountings["Year_fraction"], self._ZC.get_discount_factor_from_zcrate(self._discountings["Rate"]/100, self._discountings["Year_fraction"])))
-        print(self._discount_dict)
         self.build_cashflows()
         pass
 
@@ -240,11 +239,13 @@ class FixedLeg(FixedIncomeProduct):
         """
         return super().calculate_duration()
 
-    def calculate_sensitivity(self) -> float:
+    def calculate_sensitivity(self, new_rate:float=None) -> float:
         """
         Calculate the sensitivity of the fixed leg.
         """
-        new_rate = self._rate_curve[self._end_date] + 0.01
+        if new_rate is None:
+            new_rate = self._rate_dict[self._paiments_schedule[-1]]/100 + 0.01
+
         return self.calculate_duration() / (1 + new_rate)
 
     def calculate_convexity(self) -> float:
@@ -265,28 +266,33 @@ class FixedLeg(FixedIncomeProduct):
         Input:
         - exchange_notionnal (string, optionnal, equal to False if not provided), provide True for bonds.
         """
-        
-        for date in self._paiments_schedule:
-            if date != self._paiments_schedule[-1]:
-                npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date]
-                pv01 = npv * 1/10000
+        for i in range(len(self._paiments_schedule)-1):
+            date = self._paiments_schedule[i]
+            if date == self._paiments_schedule[0]:
+                npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date] * date
+                pv01 = self._notional * 1/10000 * self._discount_dict[date] * date
+                self._cashflows[date] = {"NPV": npv, "PV01": pv01}
+            elif date != self._paiments_schedule[-1] and date!= self._paiments_schedule[0]:
+                npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date] * (date-self._paiments_schedule[i-1])
+                pv01 = self._notional * 1/10000 * self._discount_dict[date] * (date-self._paiments_schedule[i-1])
                 self._cashflows[date] = {"NPV": npv, "PV01": pv01}
             else:
                 if self._exchange_notional == True:
-                    npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date] + self._notional * self._discount_dict[date]
-                    pv01 = npv * 1/10000
+                    npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date] * (date-self._paiments_schedule[i-1]) + self._notional * self._discount_dict[date]
+                    pv01 = self._notional * 1/10000 * self._discount_dict[date] * (date-self._paiments_schedule[i-1])
                     self._cashflows[date] = {"NPV": npv, "PV01": pv01}
                 else:
-                    npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date]
-                    pv01 = npv * 1/10000
+                    npv = self._notional * self._rate_dict[date]/100 * self._discount_dict[date] * (date-self._paiments_schedule[i-1])
+                    pv01 = self._notional * 1/10000 * self._discount_dict[date] * (date-self._paiments_schedule[i-1])
                     self._cashflows[date] = {"NPV": npv, "PV01": pv01}
+        print(self._cashflows)
         pass
 
-    def calculate_yield(self) -> float:
+    def calculate_yield(self, market_price:float) -> float:
         """
         Calculate the yield of the fixed leg.
         """
-        return utils.calculate_yield(self._cashflows)
+        return utils.calculate_yield(self._cashflows, market_price)
 
 class FloatLeg(FixedIncomeProduct):
     """
@@ -357,9 +363,3 @@ class FloatLeg(FixedIncomeProduct):
 -> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
     de valorisation / risque
 """
-
-if __name__ == "__main__":
-    rates = Rates_curve("RateCurve.csv", 6)
-    rates_df = Rates_curve("RateCurve.csv")
-    fl = FixedLeg(rates, "06/03/2025", "06/03/2030", "annually", "EUR", "30/360", "Modified Following", rates, 100, "%d/%m/%Y", "Nelson_Siegel", True)
-    print(fl.calculate_npv())
