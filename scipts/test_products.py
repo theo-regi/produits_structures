@@ -85,7 +85,7 @@ class TestFixedLeg(unittest.TestCase):
         """Initialize a FixedLeg with a default nominal value"""
         rate_curve = Rates_curve("RateCurve.csv", 5)
         discount_curve = Rates_curve("RateCurve.csv")
-        self.fixed_leg = FixedLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, "%d/%m/%Y", "Nelson_Siegel", False)
+        self.fixed_leg = FixedLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", True)
 
     def test_npv(self):
         """Test NPV calculation using a flat curve and different discount curve, nominal = 100"""
@@ -99,7 +99,7 @@ class TestFixedLeg(unittest.TestCase):
 
     def test_calculate_sensitivity(self):
         """Test Sensitivity calculation"""
-        target_sensitivity = 4.310570204
+        target_sensitivity = 0.04668795
         self.assertAlmostEqual(self.fixed_leg.calculate_sensitivity(), target_sensitivity, places=6)
 
     def test_calculate_pv01(self):
@@ -109,56 +109,52 @@ class TestFixedLeg(unittest.TestCase):
 
     def test_calculate_convexity(self):
         """Test Convexity calculation"""
-        target_convexity = 25.1451101
-        self.assertAlmostEqual(self.fixed_leg.calculate_convexity(100), target_convexity, places=6)
+        target_convexity = 0
+        self.assertAlmostEqual(self.fixed_leg.calculate_convexity(0.01), target_convexity, places=6)
 
     def test_yield(self):
         """Test Yield to Maturity calculation"""
-        target_ytm = 0.023838427*100
-        self.assertAlmostEqual(self.fixed_leg.calculate_yield(100), target_ytm, places=6)
-
+        target_ytm = 3.880628
+        self.assertAlmostEqual(self.fixed_leg.calculate_yield(105), target_ytm, places=6)
 
 class TestFloatLeg(unittest.TestCase):
     def setUp(self):
         """Initialize a FloatLeg with a default nominal value"""
         rate_curve = Rates_curve("RateCurve.csv")
         discount_curve = Rates_curve("RateCurve.csv")
-        self.float_leg = FloatLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, "%d/%m/%Y", "Nelson_Siegel", False)
+        self.float_leg = FloatLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
 
 
     def test_npv(self):
         """Test NPV calculation using a flat curve and different discount curve, nominal = 100"""
-        target = 99.89199964
+        target = 11.90599
         self.assertAlmostEqual(self.float_leg.calculate_npv(), target, places=3)
 
     def test_calculate_duration(self):
         """Test Duration calculation"""
-        target_duration = 4.795958
+        target_duration = 3.288075
         self.assertAlmostEqual(self.float_leg.calculate_duration(), target_duration, places=6)
 
     def test_calculate_sensitivity(self):
         """Test Sensitivity calculation"""
-        target_sensitivity = 0.0
+        target_sensitivity = 0.0466879
         self.assertAlmostEqual(self.float_leg.calculate_sensitivity(), target_sensitivity, places=6)
 
     def test_calculate_pv01(self):
         """Test PV01 calculation"""
-        target_pv01 = 0.046687947
+        target_pv01 = 0.046688
         self.assertAlmostEqual(self.float_leg.calculate_pv01(), target_pv01, places=6)
 
-    def test_calculate_convexity(self): #TO DO (function not done in class)
+    def test_calculate_convexity(self):
         """Test Convexity calculation"""
         target_convexity = 0.0
+        print(self.float_leg.calculate_convexity())
         self.assertAlmostEqual(self.float_leg.calculate_convexity(), target_convexity, places=6)
 
     def test_yield(self):
         """Test Yield to Maturity calculation"""
-        target_ytm = 0.0
-        self.assertAlmostEqual(self.float_leg.calculate_yield(100), target_ytm, places=6)
-
-
-
-
+        target_ytm = 4.880054
+        self.assertAlmostEqual(self.float_leg.calculate_yield(11), target_ytm, places=4)
 
 if __name__ == "__main__":
     unittest.main()

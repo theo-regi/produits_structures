@@ -98,7 +98,6 @@ class Maturity_handler:
         
         elif self.__rolling_convention == "Modified Preceding":
             new_date = self.__get_previous_day(date)
-            print(new_date)
             if new_date.month != date.month:
                 return self.__get_next_day(date)
             else:
@@ -224,7 +223,6 @@ class Rates_curve:
     def Nelson_Siegel_interpol(self,convention,product_year_fraction):
         self.__data_rate = self.year_fraction_data(convention)
         Nelson_param = optimize_nelson_siegel(self.__data_rate["Year_fraction"],self.__data_rate["Rate"])
-        print(Nelson_param) 
         self.__data_rate = self.attribute_rates_curve(product_year_fraction)
         for rates in self.__data_rate["Year_fraction"]:
             if self.__data_rate.loc[self.__data_rate["Year_fraction"]==rates,"Rate"].isna().any():
