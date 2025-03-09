@@ -98,8 +98,8 @@ class TestFixedLeg(unittest.TestCase):
         self.assertAlmostEqual(self.fixed_leg.calculate_duration(), target_duration, places=6)
 
     def test_calculate_sensitivity(self):
-        """Test Sensitivity calculation"""
-        target_sensitivity = 0.04668795
+        """Test Sensitivity calculation: +1bp change in markets rates"""
+        target_sensitivity = -0.05085670
         self.assertAlmostEqual(self.fixed_leg.calculate_sensitivity(), target_sensitivity, places=6)
 
     def test_calculate_pv01(self):
@@ -109,8 +109,8 @@ class TestFixedLeg(unittest.TestCase):
 
     def test_calculate_convexity(self):
         """Test Convexity calculation"""
-        target_convexity = 0
-        self.assertAlmostEqual(self.fixed_leg.calculate_convexity(0.01), target_convexity, places=6)
+        target_convexity = 1.319688658
+        self.assertAlmostEqual(self.fixed_leg.calculate_convexity(), target_convexity, places=6)
 
     def test_yield(self):
         """Test Yield to Maturity calculation"""

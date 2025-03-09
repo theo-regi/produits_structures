@@ -195,12 +195,29 @@ class TestRatesCurve(unittest.TestCase):
 
     def test_shift_rate_curve(self):
         curve = Rates_curve(self.path_rate, self.flat_rate)
-        liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
-        liste = [round(x, 6) for x in liste] 
+
+        liste = [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
+        liste = [round(x, 6) for x in liste]
+        list_shifts = [0.01, 0.02, 0.03, 0.04, 0.05]
+        dict_shifts = dict(zip(liste, list_shifts))
+
         result = curve.create_product_rate_curve(liste,'Quadratic')
-        shift_rate_curve = curve.shift_curve(liste,'Quadratic',0.1)
+        print("Non Shifted curve:")
         print(result)
-        print(shift_rate_curve.curve_rate_product)
+
+        shift_rate_curve = curve.deep_copy()
+        shift_rate_curve.shift_curve(dict_shifts, 'Quadratic')
+        shifted_rates = shift_rate_curve.get_data_rate()
+        print("Shifted curve:")
+        print(shifted_rates)
+
+        col1 = result['Rate'].tolist()
+        col2 = shifted_rates['Rate'].to_list()
+        self.assertTrue(any(a != b for a, b in zip(col1, col2)))
+
+        col1 = result['Forward_rate'].tolist()
+        col2 = shifted_rates['Forward_rate'].to_list()
+        self.assertTrue(any(a != b for a, b in zip(col1, col2)))
     
 if __name__ == "__main__":
     unittest.main()

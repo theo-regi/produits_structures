@@ -186,23 +186,61 @@ class PaymentScheduleHandler:
         
 #Classe de rate et courbe de taux
 class Rates_curve:
+    """
+    Classe pour gérer les courbes de taux, interpoler, calculer les taux forward, shift de courbe, etc.
+
+    Inputs:
+        - path_rate: path du fichier csv contenant les taux
+        - flat_rate: taux fixe à appliquer si besoin (optionnel, utilisé pour les courbes flats)
+
+    Utilisation:
+        - get_data_rate: retourne les données de la courbe de taux
+        - year_fraction_data: ajoute une colonne Year_fraction à la dataframe des taux
+        - attribute_rates_curve: ajoute les maturités des produits à la courbe de taux
+        - linear_interpol: interpole les taux de la courbe de taux
+        - quadratic_interpol: interpole les taux de la courbe de taux
+        - Nelson_Siegel_interpol: interpole les taux de la courbe de taux
+        - flat_rate: applique un taux fixe à la courbe de taux
+        - forward_rate: calcule les taux forward de la courbe de taux
+        - create_product_rate_curve: crée une courbe de taux pour un produit donné
+        - shift_curve: shift la courbe de taux
+
+    Renvoie la courbe de taux pour un produit donné.
+    """
     def __init__(self, path_rate:str, flat_rate:float= None):
+        self.__path_rate = path_rate
         self.__flat_rate = flat_rate
-        self.__data_rate = pd.read_csv(path_rate,sep=";")
+
+        self.__flat_rate = flat_rate
+        self.__data_rate = pd.read_csv(path_rate,sep=";") #Only CSV reader supported for now. No link to external sources developped (not required + not pratical for student's dev).
         self.curve_rate_product = None
         pass
 
     def get_data_rate(self):
+        """
+        Fonction pour renvoyer les données de la courbe de taux (depuis un csv).
+        """
         return self.__data_rate
 
-    def year_fraction_data(self,convention):
+    def year_fraction_data(self,convention: str="30/360") -> pd.DataFrame:
+        """
+        Fonction pour ajouter une colonne Year_fraction à la dataframe des taux.
+
+        Input:
+        - convention: convention de calcul de la year_fraction (30/360, 30/365, etc)
+        """
         factor_map = {'D': 1, 'W': 7, 'M': 30, 'Y': convention}
         self.__data_rate['Year_fraction'] = self.__data_rate['Pillar'].str[:-1].astype(float) * self.__data_rate['Pillar'].str[-1].map(factor_map) / convention
         self.__data_rate['Year_fraction'] = self.__data_rate['Year_fraction'].round(6)
-        
         return self.__data_rate
 
-    def attribute_rates_curve(self,product_year_fraction : list):
+    def attribute_rates_curve(self,product_year_fraction: list) -> pd.DataFrame:
+        """
+        Fonction pour ajouter les maturités des produits à la courbe de taux.
+
+        Input:
+        - product_year_fraction: liste des maturités des produits
+        """
         df= pd.DataFrame({"Year_fraction": product_year_fraction})
         df["Year_fraction"]=df["Year_fraction"].round(6)
         df = df[~df["Year_fraction"].isin(self.year_fraction_data(360)["Year_fraction"])]
@@ -210,17 +248,26 @@ class Rates_curve:
         self.__data_rate = self.__data_rate.sort_values(by='Year_fraction').reset_index(drop=True)
         return self.__data_rate
 
-    def linear_interpol(self,product_year_fraction):
+    def linear_interpol(self,product_year_fraction: list) -> pd.DataFrame:
+        """
+        Fonction pour interpoler les taux de la courbe de taux -> méthode linéaire.
+        """
         self.__data_rate = self.attribute_rates_curve(product_year_fraction)
         self.__data_rate["Rate"] = self.__data_rate["Rate"].interpolate(method='linear')
         return self.__data_rate
     
-    def quadratic_interpol(self,product_year_fraction):
+    def quadratic_interpol(self,product_year_fraction: list) -> pd.DataFrame:
+        """
+        Fonction pour interpoler les taux de la courbe de taux -> méthode quadratic.
+        """
         self.__data_rate = self.attribute_rates_curve(product_year_fraction)
         self.__data_rate["Rate"] = self.__data_rate["Rate"].interpolate(method='quadratic')
         return self.__data_rate
 
-    def Nelson_Siegel_interpol(self,convention,product_year_fraction):
+    def Nelson_Siegel_interpol(self,convention,product_year_fraction: list) -> pd.DataFrame:
+        """
+        Fonction pour interpoler les taux de la courbe de taux -> méthode Nelson-Siegel.
+        """
         self.__data_rate = self.year_fraction_data(convention)
         Nelson_param = optimize_nelson_siegel(self.__data_rate["Year_fraction"],self.__data_rate["Rate"])
         self.__data_rate = self.attribute_rates_curve(product_year_fraction)
@@ -229,12 +276,22 @@ class Rates_curve:
                 self.__data_rate.loc[self.__data_rate["Year_fraction"]==rates,"Rate"] = nelson_siegel(rates, Nelson_param[0], Nelson_param[1], Nelson_param[2], Nelson_param[3])
         return self.__data_rate
 
-    def flat_rate(self,product_year_fraction):
+    def flat_rate(self,product_year_fraction: list) -> pd.DataFrame:
+        """
+        Fonction pour construire une courbe un taux fixe.
+        """
         self.__data_rate = self.attribute_rates_curve(product_year_fraction)
         self.__data_rate["Rate"] = self.__flat_rate
         return self.__data_rate
 
-    def forward_rate(self,product_year_fraction,type_interpol):
+    def forward_rate(self,product_year_fraction: list, type_interpol: str="Nelson_Siegel") -> pd.DataFrame:
+        """
+        Fonction pour calculer les taux forward de la courbe de taux.
+
+        Input:
+        - product_year_fraction: liste des maturités des produits
+        - type_interpol: type d'interpolation à utiliser pour la courbe de taux (Linear, Quadratic, Nelson_Siegel, Flat)
+        """
         if type_interpol == "Linear":
             self.__data_rate = self.linear_interpol(product_year_fraction)
         if type_interpol == "Quadratic":
@@ -251,16 +308,33 @@ class Rates_curve:
             self.__data_rate.at[i+1, "Forward_rate"] = ((((1 + next_rate) ** next_year_fraction) / ((1 + rate) ** year_fraction)) ** (1 / (next_year_fraction - year_fraction))) - 1
         return self.__data_rate
     
-    def create_product_rate_curve(self,product_year_fraction,type_interpol):
+    def create_product_rate_curve(self,product_year_fraction: list, type_interpol = "Nelson_Siegel") -> pd.DataFrame:
+        """
+        Fonction pour créer une courbe de taux pour un produit donné.
+
+        Input:
+        - product_year_fraction: liste des maturités des produits
+        - type_interpol: type d'interpolation à utiliser pour la courbe de taux (Linear, Quadratic, Nelson_Siegel, Flat)
+        """
         self.__data_rate = self.forward_rate(product_year_fraction,type_interpol)
         self.curve_rate_product = self.__data_rate[self.__data_rate["Year_fraction"].isin(product_year_fraction)]
         return self.curve_rate_product
     
-    def shift_curve(self,product_year_fraction,type_interpol,shift):
+    def shift_curve(self, shift:dict, type_interpol:str="Nelson_Siegel"):
+        """
+        Fonction pour shifter la courbe des taux, possibilité d'utiliser un shift linéaire ou non.
+        Input:
+        - shift: dictionnaire avec les clés = maturité des produits à shifter, valeurs = shift à appliquer pour chaque maturités
+        - type_interpol: type d'interpolation à utiliser pour la courbe de taux (Linear, Quadratic, Nelson_Siegel, Flat)
+        """
+        product_year_fraction = shift.keys()
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
-        self.curve_rate_product['Forward_Rate']= self.curve_rate_product['Forward_Rate'] + shift
-        return self
+        self.curve_rate_product['Rate']+=self.curve_rate_product['Year_fraction'].map(shift)
+        self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
+        pass
 
+    def deep_copy(self):
+        return Rates_curve(self.__path_rate, self.__flat_rate)
 
 #Classe de vol
 

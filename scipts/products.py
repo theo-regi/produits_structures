@@ -242,21 +242,43 @@ class FixedLeg(FixedIncomeProduct):
         """
         return super().calculate_duration()
 
-    def calculate_sensitivity(self, shift:float=0.01) -> float:
+    def calculate_sensitivity(self, shift:dict=None) -> float:
         """
         Calculate the sensitivity of the fixed leg.
+
+        Input:
+        - shift (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
-        shift_fixed_leg = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, self._discounting_c, self._notional, self._spread+shift, self._format, self._interpol, self._exchange_notional)
+        if shift is None:
+            s = np.ones(len(self._paiments_schedule)) * 0.01
+            shift = dict(zip(self._paiments_schedule, s))
+        shifted_curve = self._discounting_c.deep_copy()
+        shifted_curve.shift_curve(shift, self._interpol)
+        shift_fixed_leg = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
         shift_fixed_leg.calculate_npv()
         return shift_fixed_leg.calculate_npv() - self.calculate_npv()
 
-    def calculate_convexity(self, shift:float=0.01) -> float:
+    def calculate_convexity(self, shift:dict=None) -> float:
         """
         Calculate the convexity of the fixed leg.
+
+        Input:
+        - shift (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps (0.01 input).
         """
-        shift_leg_pos = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, self._discounting_c, self._notional, self._spread+shift, self._format, self._interpol, self._exchange_notional)
-        shift_leg_neg = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, self._discounting_c, self._notional, self._spread-shift, self._format, self._interpol, self._exchange_notional)
-        return (shift_leg_pos.calculate_npv() + shift_leg_neg.calculate_npv() - 2*self.calculate_npv()) / (shift**2)
+        if shift is None:
+            s = np.ones(len(self._paiments_schedule)) * 0.01
+            shift = dict(zip(self._paiments_schedule, s))
+        
+        shifted_pos_curve = self._discounting_c.deep_copy()
+        shifted_pos_curve.shift_curve(shift, self._interpol)
+        shift_leg_pos = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_pos_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
+        
+        neg_shift = {key: -value for key, value in shift.items()}
+        shifted_neg_curve = self._discounting_c.deep_copy()
+        shifted_neg_curve.shift_curve(neg_shift, self._interpol)
+        shift_leg_neg = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_neg_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
+        return sum((shift_leg_pos.calculate_npv() + shift_leg_neg.calculate_npv() - 2 * self.calculate_npv()) /
+            ((shift[t]/100 ** 2) * self.calculate_npv()) for t in self._paiments_schedule)
     
     def calculate_pv01(self) -> float:
         """
