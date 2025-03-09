@@ -137,7 +137,7 @@ class TestFloatLeg(unittest.TestCase):
 
     def test_calculate_sensitivity(self):
         """Test Sensitivity calculation"""
-        target_sensitivity = 0.0466879
+        target_sensitivity = 0.03225804
         self.assertAlmostEqual(self.float_leg.calculate_sensitivity(), target_sensitivity, places=6)
 
     def test_calculate_pv01(self):
@@ -147,8 +147,7 @@ class TestFloatLeg(unittest.TestCase):
 
     def test_calculate_convexity(self):
         """Test Convexity calculation"""
-        target_convexity = 0.0
-        print(self.float_leg.calculate_convexity())
+        target_convexity = 0.4000001
         self.assertAlmostEqual(self.float_leg.calculate_convexity(), target_convexity, places=6)
 
     def test_yield(self):

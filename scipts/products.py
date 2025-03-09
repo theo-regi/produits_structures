@@ -383,27 +383,78 @@ class FloatLeg(FixedIncomeProduct):
         """
         return super().calculate_duration()
     
-    def calculate_sensitivity(self, new_rate:float=None) -> float:
+    def calculate_sensitivity(self, shift_fw:dict=None, shift_discounting:dict=None) -> float:
         """
         Calculate the sensitivity of the float leg.
+
+        Input:
+        - shift_fw (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
+        - shift_discounting (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
-        if self._exchange_notional == True:
-            if new_rate is None:
-                new_rate = self._rate_dict[self._paiments_schedule[-1]]/100 + 0.01
+        if shift_fw is None:
+            s = np.ones(len(self._paiments_schedule)) * 0.01
+            shift_fw = dict(zip(self._paiments_schedule, s))
 
-            return self.calculate_duration() / (1 + new_rate)
-        else:
-            shift_float_leg = FloatLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, self._discounting_c, self._notional, self._spread+0.01, self._format, self._interpol, self._exchange_notional)
-            shift_float_leg.calculate_npv()
-            return shift_float_leg.calculate_npv() - self.calculate_npv()
+        if shift_discounting is None:
+            shift_discounting = shift_fw
 
-    def calculate_convexity(self, shift:float=0.01) -> float:
+        shifted_fw_curve = self._rate_curve.deep_copy()
+        shifted_fw_curve.shift_curve(shift_fw, self._interpol)
+
+        shifted_discounting_curve = self._discounting_c.deep_copy()
+        shifted_discounting_curve.shift_curve(shift_discounting, self._interpol)
+
+        shift_fixed_leg = FloatLeg(shifted_fw_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_discounting_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
+        shift_fixed_leg.calculate_npv()
+        return shift_fixed_leg.calculate_npv() - self.calculate_npv()
+
+    def calculate_convexity(self, shift_fw:dict=None, shift_discounting:dict=None) -> float:
         """
         Calculate the convexity of the float leg.
+
+        Input:
+        - shift_fw (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
+        - shift_discounting (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
-        shift_leg_pos = FloatLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, self._discounting_c, self._notional, self._spread+shift, self._format, self._interpol, self._exchange_notional)
-        shift_leg_neg = FloatLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, self._discounting_c, self._notional, self._spread-shift, self._format, self._interpol, self._exchange_notional)
-        return (shift_leg_pos.calculate_npv() + shift_leg_neg.calculate_npv() - 2*self.calculate_npv()) / (shift**2)
+        if shift_fw is None:
+            s = np.ones(len(self._paiments_schedule)) * 0.01
+            shift_fw = dict(zip(self._paiments_schedule, s))
+
+        if shift_discounting is None:
+            shift_discounting = shift_fw
+        
+        def get_npv(shift_fw, shift_ds):
+            shifted_fw_curve = self._rate_curve.deep_copy()
+            shifted_fw_curve.shift_curve(shift_fw, self._interpol)
+            shifted_discounting_curve = self._discounting_c.deep_copy()
+            shifted_discounting_curve.shift_curve(shift_ds, self._interpol)
+            shift_leg = FloatLeg(shifted_fw_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_discounting_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
+            return shift_leg.calculate_npv()
+
+        #Initial NPV:
+        npv_0 = self.calculate_npv()
+
+        #Shift in the same direction of both curves:
+        npv_pp = get_npv(shift_fw, shift_discounting)
+        npv_mm = get_npv({key: -value for key, value in shift_fw.items()}, {key: -value for key, value in shift_discounting.items()})
+        
+        #Shift in the opposite direction of both curves:
+        npv_pm = get_npv(shift_fw, {key: -value for key, value in shift_discounting.items()})
+        npv_mp = get_npv({key: -value for key, value in shift_fw.items()}, shift_discounting)
+
+        #Shift for one and not the other:
+        npv_p0 = get_npv(shift_fw, {t: 0 for t in shift_discounting})
+        npv_0p = get_npv({t: 0 for t in shift_fw}, shift_discounting)
+        npv_m0 = get_npv({key: -value for key, value in shift_fw.items()}, {t: 0 for t in shift_discounting})
+        npv_0m = get_npv({t: 0 for t in shift_fw}, {key: -value for key, value in shift_discounting.items()})
+
+        sum_npvs = npv_pp + npv_mm - npv_p0 - npv_0p + npv_pm + npv_mp + 2 * npv_0 - npv_m0 - npv_0m
+
+        vector_f = np.array([value for value in shift_fw.values()])
+        vector_d = np.array([value for value in shift_discounting.values()])
+        d = np.dot(vector_f, vector_d) * npv_0
+
+        return sum_npvs / (d *10000)
 
     def calculate_pv01(self) -> float:
         """
@@ -479,3 +530,14 @@ class FloatLeg(FixedIncomeProduct):
 -> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
     de valorisation / risque
 """
+
+if __name__ == "__main__":
+    rate_curve = Rates_curve("RateCurve.csv")
+    float_leg = FloatLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", rate_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
+    rate_curve_s = rate_curve.deep_copy()
+    s = np.ones(len(float_leg._paiments_schedule)) * -0.01
+    shift_fw = dict(zip(float_leg._paiments_schedule, s))
+    rate_curve_s.shift_curve(shift_fw)
+    float_leg_s = FloatLeg(rate_curve_s, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", rate_curve_s, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
+    print(float_leg_s._rates_c)
+    print(float_leg_s.calculate_npv())

@@ -178,8 +178,11 @@ class PaymentScheduleHandler:
             elif self.__periodicity == "annually":
                 count_date += relativedelta(years=1)
                 list_dates.append(count_date)
+            elif self.__periodicity == "none":
+                count_date = self.__end_date
+                list_dates.append(count_date)
             else:
-                raise ValueError(f"Entered periodicity {self.__periodicity} is not supported. Supported periodicity: monthly, quaterly, semi-annually, annually.")
+                raise ValueError(f"Entered periodicity {self.__periodicity} is not supported. Supported periodicity: monthly, quaterly, semi-annually, annually, none.")
         
         list_dates.append(self.__end_date)
         return list_dates
