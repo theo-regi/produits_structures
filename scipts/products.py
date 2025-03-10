@@ -514,7 +514,7 @@ class FloatLeg(FixedIncomeProduct):
 
 """
 1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
-- Float et Fix leg, car ce seront des bases pour construire le rest, il faut un input échange de notionnel (yes/no)
+- Float et Fix leg, car ce seront des bases pour construire le reste, il faut un input échange de notionnel (yes/no)
     - Fixed bond(c'est une leg fix avec de l'échange de notionnel à la fin)
     - FRNs (pareil que fixed bond mais en float)
 - Caps / floors
@@ -530,14 +530,3 @@ class FloatLeg(FixedIncomeProduct):
 -> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
     de valorisation / risque
 """
-
-if __name__ == "__main__":
-    rate_curve = Rates_curve("RateCurve.csv")
-    float_leg = FloatLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", rate_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
-    rate_curve_s = rate_curve.deep_copy()
-    s = np.ones(len(float_leg._paiments_schedule)) * -0.01
-    shift_fw = dict(zip(float_leg._paiments_schedule, s))
-    rate_curve_s.shift_curve(shift_fw)
-    float_leg_s = FloatLeg(rate_curve_s, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", rate_curve_s, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
-    print(float_leg_s._rates_c)
-    print(float_leg_s.calculate_npv())
