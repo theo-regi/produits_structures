@@ -341,6 +341,10 @@ class Rates_curve:
 
 #Classe de vol
 
+#Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
+
+#Price diffision models: Mouvement Brownien, (Jump Diffusion, Diffusion Stochastique what are those ?) + besoin de prise en compte des divs
+
 #Helper to get the market from the currency.
 def get_market(currency):
     if currency == "EUR":

@@ -1,1 +1,7 @@
-Librarie Quantlib pour utiliser des pricers
+Librarie Quantlib pour utiliser des pricers.
+
+Pour les prochains axes, il faut penser aux modèles taux / diffusion de prix / volatilité.
+Il faut essayer de réfléchirs aux produits structurés que l'on veut faire, et comment agencer les legs fixed income
+déjà codée, car on a de quoi faire swaps et tout là.
+
+Regarder également ce que l'on veut faire sur l'EQD pour un peu avoir de la visi sur les prochains devs.

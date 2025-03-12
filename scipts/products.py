@@ -530,3 +530,85 @@ class FloatLeg(FixedIncomeProduct):
 -> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
     de valorisation / risque
 """
+
+#-------------------------------------------------------------------------------------------------------
+#----------------------------Classes de produits généralistes en equity derivatives---------------------
+#-------------------------------------------------------------------------------------------------------
+#Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
+#Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
+#de dividendes etc.
+#Les inputs dans le commentaires ne sont que des directions possibles.
+class Share():
+    """
+    Class for shares/stocks.
+
+    Input:
+    - spot price (float, non optionnal)
+    - dividend schedule (dict, optionnal) (voir si besoin de build un échéancier comme sur le FI / genre paiement annuel des divs à partir d'une date)
+    - diffusion model
+    - risk free rate curve to calculate forward price + discounting
+    
+    Returns:
+    - Price of the share
+    - Dividend schedule
+    - Forward price at risk free rate
+    """
+    def __init__(self, spot_price: float) -> None:
+        pass
+
+#____________________________Classe abstraite pour les produits d'Equity________________________________
+class EQDProduct(ABC):
+    """"
+    Abstract class for equity derivatives products.
+
+    Input:
+    -underlying equity (class, non optionnal)
+    -forward rates curve (dict, non optionnal) ?
+    -start date (string, non optionnal)
+    -end date (string, non optionnal) / options dates
+    -paiments frequency (string, non optionnal) (for divs par exemple/coupon pour des reverses convertibles / jsais pas)
+    -day count convention (string, optionnal, equal to 30/360 if not provided)
+    -rolling convention (string, optionnal, equal to Modified Following if not provided)
+    -discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
+    -notional (float, optionnal, will quote in percent if not provided) / nb underlying shares / equities
+
+    Returns:
+    - NPV
+    - Greeks: Delta / Gamma / Rho / Theta / Vega
+    - Sensitivities : VaR / CVaR ?
+    """
+    def __init__(self):
+        pass
+
+#Class for vanilla equities options:
+class VanillaOption(EQDProduct):
+    """
+    Class for vanilla options on equities."
+
+    Input:
+    - underlying equity (class, non optionnal)
+    - start date (string, non optionnal)
+    - end date (string, non optionnal) / options dates
+    - type of option (string, non optionnal) (call / put)
+    - strike price (float, non optionnal)
+    - day count convention (string, optionnal, equal to 30/360 if not provided)
+    - rolling convention (string, optionnal, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
+    - notional (float, optionnal, will quote in percent if not provided) / nb underlying shares / equities
+    - type of exercise (string, optionnal) (American / European / Bermudan ?)
+
+    Returns:
+    - NPV
+    - Greeks: Delta / Gamma / Rho / Theta / Vega
+    - Sensitivities : VaR / CVaR ?
+    """
+    def __init__(self):
+        pass
+
+"""
+Après à quel point on veut aller dans la complexité des produits/ou avoir des produits sur mesures.
+Est-ce qu'on veut des produits structurés (reverse convertibles, autocallables, etc.) ou des produits plus
+simples (options, futures, etc.)
+
+Est-ce qu'on peut utiliser direct la classe option pour faire des barrières, des digitals, etc.
+"""
