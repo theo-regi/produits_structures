@@ -214,18 +214,23 @@ class FixedLeg(FixedIncomeProduct):
     """
     def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following", discounting_curve:Rates_curve=None, notional:float=100, shift:float=0.01, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, shift, format, interpol, exchange_notional)
-         
+    
+
         self._rates_c = self._rate_curve.create_product_rate_curve(self._paiments_schedule, "Flat")
+
         if discounting_curve is None:
             self._discounting_c=self._rate_curve
         else:
             self._discounting_c=discounting_curve
 
+        interpol = "Nelson_Siegel"
         self._discountings=self._discounting_c.create_product_rate_curve(self._paiments_schedule, interpol)
-        
+
+
         self._ZC = ZCBond(self._notional)
         self._rate_dict = dict(zip(self._rates_c["Year_fraction"], self._rates_c["Rate"]))
         self._discount_dict = dict(zip(self._discountings["Year_fraction"], self._ZC.get_discount_factor_from_zcrate(self._discountings["Rate"]/100, self._discountings["Year_fraction"])))
+
         self.build_cashflows()
         self.build_cashflows_npv()
         pass
@@ -488,6 +493,7 @@ class FloatLeg(FixedIncomeProduct):
                     npv = self._notional * (self._rate_dict[date]+self._spread)/100 * (date-self._paiments_schedule[i-1])
                     pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
                     self._cashflows_r[date] = {"NPV": npv, "PV01": pv01}
+        print(self._cashflows_r)
         pass
 
     def build_cashflows_npv(self) -> dict:
@@ -530,6 +536,70 @@ class FloatLeg(FixedIncomeProduct):
 -> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
     de valorisation / risque
 """
+
+class Swap(FixedIncomeProduct):
+    """
+    Class pour un swap classique, on va pouvoir trouver le taux d'un swap
+
+    - Float and Fixed leg nous permettent de créer un swap.
+    - La classe permet d'utiliser les fonctions de FixedLeg et FloatLeg pour trouver le taux d'un swap. 
+    """
+    def __init__ (self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following", discounting_curve:Rates_curve=None, notional:float=100, spread:float=0, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
+        super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
+
+        self.float_leg = FloatLeg(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
+        self.fixed_rate = self.calculate_fixed_rate()
+
+                # Create a fixed rate curve for the FixedLeg
+        self._rate_curve_fixed=rate_curve.deep_copy(self.fixed_rate)
+        interpol='Flat'
+        self.fixed_leg = FixedLeg(self._rate_curve_fixed, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional,spread, format, interpol, exchange_notional)
+
+
+    def calculate_fixed_rate(self) -> float:
+        """
+        Calculate the fixed rate of the swap.
+        """
+        float_npv = self.float_leg.calculate_npv()
+        float_pv01 = self.float_leg.calculate_pv01()
+        fixed_rate = (float_npv / float_pv01) / 10000
+        return fixed_rate
+    
+    def calculate_npv(self) -> float:
+        """
+        Calculate the NPV of the swap.
+        """
+        return self.float_leg.calculate_npv() - self.fixed_leg.calculate_npv()
+
+    def calculate_duration(self) -> float:
+        """
+        Calculate the duration of the swap.
+        """
+        return (self.float_leg.calculate_duration() + self.fixed_leg.calculate_duration()) / 2
+
+    def calculate_sensitivity(self) -> float:
+        """
+        Calculate the sensitivity of the swap.
+        """
+        return self.float_leg.calculate_sensitivity() - self.fixed_leg.calculate_sensitivity()
+
+    def calculate_convexity(self) -> float:
+        """
+        Calculate the convexity of the swap.
+        """
+        return self.float_leg.calculate_convexity() - self.fixed_leg.calculate_convexity()
+
+    def calculate_pv01(self) -> float:
+        """
+        Calculate the PV01 of the swap.
+        """
+        return self.float_leg.calculate_pv01() - self.fixed_leg.calculate_pv01()
+
+
+
+
+
+
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Classes de produits généralistes en equity derivatives---------------------

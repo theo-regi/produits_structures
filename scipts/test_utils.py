@@ -191,6 +191,7 @@ class TestRatesCurve(unittest.TestCase):
         liste= [0.002778,0.019444444,0.083333333,0.25,0.166666666666667]
         liste = [round(x, 6) for x in liste] 
         result = curve.create_product_rate_curve(liste,'Quadratic')
+        print(result)
         self.assertFalse(result['Rate'].isna().any())
 
     def test_shift_rate_curve(self):

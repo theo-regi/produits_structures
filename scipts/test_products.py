@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from products import ZCBond, FixedLeg, FloatLeg
+from products import ZCBond, FixedLeg, FloatLeg, Swap
 from utils import Rates_curve
 
 class TestZCBond(unittest.TestCase):
@@ -90,6 +90,7 @@ class TestFixedLeg(unittest.TestCase):
     def test_npv(self):
         """Test NPV calculation using a flat curve and different discount curve, nominal = 100"""
         target = 111.3299
+        print(self.fixed_leg._rates_c)
         self.assertAlmostEqual(self.fixed_leg.calculate_npv(), target, places=3)
 
     def test_calculate_duration(self):
@@ -154,6 +155,24 @@ class TestFloatLeg(unittest.TestCase):
         """Test Yield to Maturity calculation"""
         target_ytm = 4.880054
         self.assertAlmostEqual(self.float_leg.calculate_yield(11), target_ytm, places=4)
+
+
+class TestSwap(unittest.TestCase):
+    def setUp(self):
+        """Initialize a FloatLeg with a default nominal value"""
+        rate_curve = Rates_curve("RateCurve.csv")
+        discount_curve = Rates_curve("RateCurve.csv")
+        self.swap = Swap(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
+
+
+    def test_calculate_fixed_rate(self):
+        """Test Fixed Rate calculation"""
+        target_fixed_rate = 0.025501
+        fixed_leg_rate = self.swap.calculate_fixed_rate()
+
+        print(self.swap.fixed_leg._rates_c)
+        print(self.swap.float_leg._rates_c)
+        self.assertAlmostEqual(fixed_leg_rate, target_fixed_rate, places=6)
 
 if __name__ == "__main__":
     unittest.main()

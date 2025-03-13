@@ -320,8 +320,9 @@ class Rates_curve:
         - type_interpol: type d'interpolation à utiliser pour la courbe de taux (Linear, Quadratic, Nelson_Siegel, Flat)
         """
         self.__data_rate = self.forward_rate(product_year_fraction,type_interpol)
-        self.curve_rate_product = self.__data_rate[self.__data_rate["Year_fraction"].isin(product_year_fraction)]
-        return self.curve_rate_product
+        self.__data_rate = self.__data_rate[self.__data_rate["Year_fraction"].isin(product_year_fraction)]
+
+        return self.__data_rate
     
     def shift_curve(self, shift:dict, type_interpol:str="Nelson_Siegel"):
         """
@@ -336,8 +337,16 @@ class Rates_curve:
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
         pass
 
-    def deep_copy(self):
-        return Rates_curve(self.__path_rate, self.__flat_rate)
+    def deep_copy(self,flat_rate:float=None):
+        return Rates_curve(self.__path_rate,flat_rate)
+    
+    def change_rate(self,product_year_fraction: list, fixed_rate, type_interpol = "Nelson_Siegel") -> pd.DataFrame:
+        self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
+        self.__data_rate['Rate']= fixed_rate
+        return self.__data_rate
+    
+    def return_data_frame(self):
+        return self.__data_rate
 
 #Classe de vol
 
