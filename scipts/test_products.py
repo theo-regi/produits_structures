@@ -156,7 +156,6 @@ class TestFloatLeg(unittest.TestCase):
         target_ytm = 4.880054
         self.assertAlmostEqual(self.float_leg.calculate_yield(11), target_ytm, places=4)
 
-
 class TestSwap(unittest.TestCase):
     def setUp(self):
         """Initialize a FloatLeg with a default nominal value"""

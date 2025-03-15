@@ -2,6 +2,8 @@ import numpy as np
 from abc import ABC, abstractmethod
 from utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
 import utils
+import pandas as pd
+from scipy.stats import norm
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes de produits----------------------------
@@ -493,7 +495,6 @@ class FloatLeg(FixedIncomeProduct):
                     npv = self._notional * (self._rate_dict[date]+self._spread)/100 * (date-self._paiments_schedule[i-1])
                     pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
                     self._cashflows_r[date] = {"NPV": npv, "PV01": pv01}
-        print(self._cashflows_r)
         pass
 
     def build_cashflows_npv(self) -> dict:
@@ -517,6 +518,23 @@ class FloatLeg(FixedIncomeProduct):
         Calculate the yield of the float leg.
         """
         return utils.calculate_yield(self._cashflows_r, market_price)
+
+    def cap_value(self, cap_strike:float,sigma:float) -> float:
+        """
+        Calculate the cap value of the float leg.
+
+        Input:
+        - cap (float): cap value
+        - sigma (float): volatility of the forward rate
+
+        """
+        df_cap= pd.DataFrame()
+        df_cap["Log"] = self._rates_c["Forward_rate"].apply(lambda x: np.log(x/cap_strike))
+        df_cap["vol"] = (0.5*sigma**2)*self._rates_c["Year_fraction"]
+        df_cap["Actu"] = sigma*np.sqrt(self._rates_c["Year_fraction"])
+        df_cap["d1"] = (df_cap["Log"]+df_cap["vol"])/df_cap["Actu"]
+        df_cap["d2"] = df_cap["d1"]-df_cap["Actu"]
+        df_cap["value"] = self._rates_c["Year_fraction"]*norm.cdf(df_cap["d1"])-cap_strike*np.exp(-self._rates_c["Year_fraction"]*self._rates_c["Forward_rate"])*norm.cdf(df_cap["d2"])
 
 """
 1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
@@ -543,6 +561,16 @@ class Swap(FixedIncomeProduct):
 
     - Float and Fixed leg nous permettent de créer un swap.
     - La classe permet d'utiliser les fonctions de FixedLeg et FloatLeg pour trouver le taux d'un swap. 
+
+       Input:
+    - forward rates curve (dict, non optionnal)
+    - start date (string, non optionnal)
+    - end date (string, non optionnal)
+    - paiments frequency (string, non optionnal)
+    - day count convention (string, optionnal, equal to 30/360 if not provided)
+    - rolling convention (string, optionnal, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
+    - notional (float, optionnal, will quote in percent if not provided)
     """
     def __init__ (self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following", discounting_curve:Rates_curve=None, notional:float=100, spread:float=0, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
