@@ -148,7 +148,9 @@ class FixedIncomeProduct(ABC):
         self._notional = notional
         self._format = format
         self._cashflows = {}
+        self._cashflows_cap ={}
         self._cashflows_r = {}
+        self._cashflows_cap_r ={}
         self._exchange_notional = exchange_notional
         self._spread = spread
         self._interpol = interpol
@@ -529,12 +531,55 @@ class FloatLeg(FixedIncomeProduct):
 
         """
         df_cap= pd.DataFrame()
-        df_cap["Log"] = self._rates_c["Forward_rate"].apply(lambda x: np.log(x/cap_strike))
+        df_cap["Log"] = self._rates_c["Forward_rate"].apply(lambda x: np.log((x/100)/cap_strike))
         df_cap["vol"] = (0.5*sigma**2)*self._rates_c["Year_fraction"]
         df_cap["Actu"] = sigma*np.sqrt(self._rates_c["Year_fraction"])
         df_cap["d1"] = (df_cap["Log"]+df_cap["vol"])/df_cap["Actu"]
         df_cap["d2"] = df_cap["d1"]-df_cap["Actu"]
-        df_cap["value"] = self._rates_c["Year_fraction"]*norm.cdf(df_cap["d1"])-cap_strike*np.exp(-self._rates_c["Year_fraction"]*self._rates_c["Forward_rate"])*norm.cdf(df_cap["d2"])
+        df_cap["value"] = self._rates_c["Forward_rate"]/100*norm.cdf(df_cap["d1"])-cap_strike*norm.cdf(df_cap["d2"])   
+        self._cap_rate_dict = dict(zip(self._rates_c["Year_fraction"],  df_cap["value"]))
+        print(self._cap_rate_dict)
+        self.build_cashflow_cap()
+        self.build_cashflow_cap_npv()
+        return df_cap["value"]
+    
+    def build_cashflow_cap(self):
+        for i in range(len(self._paiments_schedule)-1):
+            date = self._paiments_schedule[i]
+        if date == self._paiments_schedule[0]:
+            npv = self._notional * (self._cap_rate_dict[date]+self._spread)/100 * date
+            pv01 = self._notional * 1/10000 * date
+            self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
+        elif date != self._paiments_schedule[-1] and date!= self._paiments_schedule[0]:
+            npv = self._notional * (self._cap_rate_dict[date]+self._spread) * (date-self._paiments_schedule[i-1])
+            pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
+            self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
+        else:
+            if self._exchange_notional == True:
+                npv = self._notional * (self._cap_rate_dict[date]+self._spread) * (date-self._paiments_schedule[i-1]) + self._notional
+                pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
+                self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
+            else:
+                npv = self._notional * (self._cap_rate_dict[date]+self._spread) * (date-self._paiments_schedule[i-1])
+                pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
+                self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
+    pass
+
+    def build_cashflow_cap_npv(self):
+        """
+        Apply discount factors to NPV and PV01 in a cashflow dictionary.
+        
+        :return: New dictionary with discounted "NPV" and "PV01".
+        """
+        discounted_cashflows = {
+            t: {
+                "NPV": cf["NPV"] * self._discount_dict.get(t, 1),
+                "PV01": cf["PV01"] * self._discount_dict.get(t, 1)
+            }
+            for t, cf in self._cashflows_cap_r.items()
+        }
+        self._cashflows_cap = discounted_cashflows
+    pass
 
 """
 1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:

@@ -156,6 +156,12 @@ class TestFloatLeg(unittest.TestCase):
         target_ytm = 4.880054
         self.assertAlmostEqual(self.float_leg.calculate_yield(11), target_ytm, places=4)
 
+    def test_cap_value(self):
+        """Test Cap Value calculation"""
+        target_cap_value = 0.016786
+        result = self.float_leg.cap_value(0.025,0.06)
+        self.assertAlmostEqual(result.sum(), target_cap_value, places=6)
+
 class TestSwap(unittest.TestCase):
     def setUp(self):
         """Initialize a FloatLeg with a default nominal value"""
