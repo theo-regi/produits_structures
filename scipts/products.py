@@ -376,7 +376,7 @@ class FloatLeg(FixedIncomeProduct):
         self._ZC = ZCBond(self._notional)
         self._rate_dict = dict(zip(self._rates_c["Year_fraction"], self._rates_c["Forward_rate"]))
         self._discount_dict = dict(zip(self._discountings["Year_fraction"], self._ZC.get_discount_factor_from_zcrate(self._discountings["Rate"]/100, self._discountings["Year_fraction"])))
-        self.build_cashflows()
+        self.build_cashflows(self._rate_dict,100, self._cashflows_r)
         self.build_cashflows_npv()
         pass
     
@@ -471,7 +471,7 @@ class FloatLeg(FixedIncomeProduct):
         """
         return super().calculate_pv01()
     
-    def build_cashflows(self) -> dict:
+    def build_cashflows(self,dict,pourcentage,dict_result) -> dict:
         """
         Build the paiements schedule for the fixed leg.
         Input:
@@ -481,22 +481,22 @@ class FloatLeg(FixedIncomeProduct):
         for i in range(len(self._paiments_schedule)-1):
             date = self._paiments_schedule[i]
             if date == self._paiments_schedule[0]:
-                npv = self._notional * (self._rate_dict[date]+self._spread)/100 * date
+                npv = self._notional * (dict[date]+self._spread)/pourcentage * date
                 pv01 = self._notional * 1/10000 * date
-                self._cashflows_r[date] = {"NPV": npv, "PV01": pv01}
+                dict_result[date] = {"NPV": npv, "PV01": pv01}
             elif date != self._paiments_schedule[-1] and date!= self._paiments_schedule[0]:
-                npv = self._notional * (self._rate_dict[date]+self._spread)/100 * (date-self._paiments_schedule[i-1])
+                npv = self._notional * (dict[date]+self._spread)/pourcentage * (date-self._paiments_schedule[i-1])
                 pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
-                self._cashflows_r[date] = {"NPV": npv, "PV01": pv01}
+                dict_result[date] = {"NPV": npv, "PV01": pv01}
             else:
                 if self._exchange_notional == True:
-                    npv = self._notional * (self._rate_dict[date]+self._spread)/100 * (date-self._paiments_schedule[i-1]) + self._notional
+                    npv = self._notional * (dict[date]+self._spread)/pourcentage * (date-self._paiments_schedule[i-1]) + self._notional
                     pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
-                    self._cashflows_r[date] = {"NPV": npv, "PV01": pv01}
+                    dict_result[date] = {"NPV": npv, "PV01": pv01}
                 else:
-                    npv = self._notional * (self._rate_dict[date]+self._spread)/100 * (date-self._paiments_schedule[i-1])
+                    npv = self._notional * (dict[date]+self._spread)/pourcentage * (date-self._paiments_schedule[i-1])
                     pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
-                    self._cashflows_r[date] = {"NPV": npv, "PV01": pv01}
+                    dict_result[date] = {"NPV": npv, "PV01": pv01}
         pass
 
     def build_cashflows_npv(self) -> dict:
@@ -513,7 +513,7 @@ class FloatLeg(FixedIncomeProduct):
             for t, cf in self._cashflows_r.items()
         }
         self._cashflows = discounted_cashflows
-        pass
+    pass
 
     def calculate_yield(self, market_price:float) -> float:
         """
@@ -539,31 +539,9 @@ class FloatLeg(FixedIncomeProduct):
         df_cap["value"] = self._rates_c["Forward_rate"]/100*norm.cdf(df_cap["d1"])-cap_strike*norm.cdf(df_cap["d2"])   
         self._cap_rate_dict = dict(zip(self._rates_c["Year_fraction"],  df_cap["value"]))
         print(self._cap_rate_dict)
-        self.build_cashflow_cap()
+        self.build_cashflows(self._cap_rate_dict,1, self._cashflows_cap_r)
         self.build_cashflow_cap_npv()
         return df_cap["value"]
-    
-    def build_cashflow_cap(self):
-        for i in range(len(self._paiments_schedule)-1):
-            date = self._paiments_schedule[i]
-        if date == self._paiments_schedule[0]:
-            npv = self._notional * (self._cap_rate_dict[date]+self._spread)/100 * date
-            pv01 = self._notional * 1/10000 * date
-            self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
-        elif date != self._paiments_schedule[-1] and date!= self._paiments_schedule[0]:
-            npv = self._notional * (self._cap_rate_dict[date]+self._spread) * (date-self._paiments_schedule[i-1])
-            pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
-            self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
-        else:
-            if self._exchange_notional == True:
-                npv = self._notional * (self._cap_rate_dict[date]+self._spread) * (date-self._paiments_schedule[i-1]) + self._notional
-                pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
-                self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
-            else:
-                npv = self._notional * (self._cap_rate_dict[date]+self._spread) * (date-self._paiments_schedule[i-1])
-                pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
-                self._cashflows_cap_r[date] = {"NPV": npv, "PV01": pv01}
-    pass
 
     def build_cashflow_cap_npv(self):
         """
@@ -580,7 +558,7 @@ class FloatLeg(FixedIncomeProduct):
         }
         self._cashflows_cap = discounted_cashflows
     pass
-
+ 
 """
 1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
 - Float et Fix leg, car ce seront des bases pour construire le reste, il faut un input échange de notionnel (yes/no)
