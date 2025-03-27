@@ -1,3 +1,5 @@
+from constants import BASE_NOTIONAL, CONVENTION_DAY_COUNT, ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT
+
 import numpy as np
 from abc import ABC, abstractmethod
 from utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
@@ -23,7 +25,7 @@ class ZCBond():
 
     Nous implémentons que les fonctions/données de bases, on pourrait imaginer le risque de liquidité/crédit
     """
-    def __init__(self, nominal: float=100) -> None:
+    def __init__(self, nominal: float=BASE_NOTIONAL) -> None:
         self.__nominal = nominal
         pass
 
@@ -136,8 +138,9 @@ class FixedIncomeProduct(ABC):
     For fixed income leg, rate_curve will be a flat rate curve.
     """
     def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
-                 paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve:Rates_curve=None, notional:float=100, spread:float=0, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
+                 paiement_freq:str, currency:str, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION,
+                 discounting_curve:Rates_curve=None, notional:float=BASE_NOTIONAL, spread:float=0, format:str=FORMAT_DATE, interpol: str=TYPE_INTERPOL, exchange_notional: str=EXCHANGE_NOTIONAL) -> None:
+        
         self._rate_curve=rate_curve
         self._start_date=start_date
         self._end_date=end_date
@@ -216,10 +219,9 @@ class FixedLeg(FixedIncomeProduct):
     For fixed income leg, rate_curve will be a flat rate curve.
     For bonds, notional exchange will be True in build_cashflows.
     """
-    def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following", discounting_curve:Rates_curve=None, notional:float=100, shift:float=0.01, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
+    def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, discounting_curve:Rates_curve=None, notional:float=BASE_NOTIONAL, shift:float=0, format:str=FORMAT_DATE, interpol: str=TYPE_INTERPOL, exchange_notional: str=EXCHANGE_NOTIONAL) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, shift, format, interpol, exchange_notional)
     
-
         self._rates_c = self._rate_curve.create_product_rate_curve(self._paiments_schedule, "Flat")
 
         if discounting_curve is None:
@@ -227,9 +229,7 @@ class FixedLeg(FixedIncomeProduct):
         else:
             self._discounting_c=discounting_curve
 
-        interpol = "Nelson_Siegel"
-        self._discountings=self._discounting_c.create_product_rate_curve(self._paiments_schedule, interpol)
-
+        self._discountings=self._discounting_c.create_product_rate_curve(self._paiments_schedule, TYPE_INTERPOL)
 
         self._ZC = ZCBond(self._notional)
         self._rate_dict = dict(zip(self._rates_c["Year_fraction"], self._rates_c["Rate"]))
@@ -259,7 +259,7 @@ class FixedLeg(FixedIncomeProduct):
         - shift (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
         if shift is None:
-            s = np.ones(len(self._paiments_schedule)) * 0.01
+            s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
             shift = dict(zip(self._paiments_schedule, s))
         shifted_curve = self._discounting_c.deep_copy()
         shifted_curve.shift_curve(shift, self._interpol)
@@ -275,7 +275,7 @@ class FixedLeg(FixedIncomeProduct):
         - shift (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps (0.01 input).
         """
         if shift is None:
-            s = np.ones(len(self._paiments_schedule)) * 0.01
+            s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
             shift = dict(zip(self._paiments_schedule, s))
         
         shifted_pos_curve = self._discounting_c.deep_copy()
@@ -361,8 +361,8 @@ class FloatLeg(FixedIncomeProduct):
     - notional (float, optionnal, will quote in percent if not provided)
     """
     def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
-                 paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following",
-                 discounting_curve:Rates_curve=None, notional:float=100, spread:float=0, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
+                 paiement_freq:str, currency:str, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION,
+                 discounting_curve:Rates_curve=None, notional:float=BASE_NOTIONAL, spread:float=0, format:str=FORMAT_DATE, interpol: str=TYPE_INTERPOL, exchange_notional: str=EXCHANGE_NOTIONAL) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)       
         
         self._rates_c = self._rate_curve.create_product_rate_curve(self._paiments_schedule, interpol)
@@ -401,7 +401,7 @@ class FloatLeg(FixedIncomeProduct):
         - shift_discounting (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
         if shift_fw is None:
-            s = np.ones(len(self._paiments_schedule)) * 0.01
+            s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
             shift_fw = dict(zip(self._paiments_schedule, s))
 
         if shift_discounting is None:
@@ -426,7 +426,7 @@ class FloatLeg(FixedIncomeProduct):
         - shift_discounting (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
         if shift_fw is None:
-            s = np.ones(len(self._paiments_schedule)) * 0.01
+            s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
             shift_fw = dict(zip(self._paiments_schedule, s))
 
         if shift_discounting is None:
@@ -513,7 +513,7 @@ class FloatLeg(FixedIncomeProduct):
             for t, cf in self._cashflows_r.items()
         }
         self._cashflows = discounted_cashflows
-    pass
+        pass
 
     def calculate_yield(self, market_price:float) -> float:
         """
@@ -557,7 +557,7 @@ class FloatLeg(FixedIncomeProduct):
             for t, cf in self._cashflows_cap_r.items()
         }
         self._cashflows_cap = discounted_cashflows
-    pass
+        pass
  
 """
 1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
@@ -595,16 +595,15 @@ class Swap(FixedIncomeProduct):
     - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
     - notional (float, optionnal, will quote in percent if not provided)
     """
-    def __init__ (self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=30/360, rolling_conv:str="Modified Following", discounting_curve:Rates_curve=None, notional:float=100, spread:float=0, format:str="%d/%m/%Y", interpol: str="Nelson_Siegel", exchange_notional: str=False) -> None:
+    def __init__ (self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, discounting_curve:Rates_curve=None, notional:float=BASE_NOTIONAL, spread:float=0, format:str=FORMAT_DATE, interpol: str=TYPE_INTERPOL, exchange_notional: str=EXCHANGE_NOTIONAL) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
 
         self.float_leg = FloatLeg(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
         self.fixed_rate = self.calculate_fixed_rate()
 
-                # Create a fixed rate curve for the FixedLeg
+        # Create a fixed rate curve for the FixedLeg
         self._rate_curve_fixed=rate_curve.deep_copy(self.fixed_rate)
-        interpol='Flat'
-        self.fixed_leg = FixedLeg(self._rate_curve_fixed, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional,spread, format, interpol, exchange_notional)
+        self.fixed_leg = FixedLeg(self._rate_curve_fixed, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional,spread, format, "Flat", exchange_notional)
 
 
     def calculate_fixed_rate(self) -> float:

@@ -1,3 +1,4 @@
+from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE
 from datetime import datetime as dt
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
@@ -225,7 +226,7 @@ class Rates_curve:
         """
         return self.__data_rate
 
-    def year_fraction_data(self,convention: str="30/360") -> pd.DataFrame:
+    def year_fraction_data(self,convention: str=CONVENTION_DAY_COUNT) -> pd.DataFrame:
         """
         Fonction pour ajouter une colonne Year_fraction à la dataframe des taux.
 
@@ -287,7 +288,7 @@ class Rates_curve:
         self.__data_rate["Rate"] = self.__flat_rate
         return self.__data_rate
 
-    def forward_rate(self,product_year_fraction: list, type_interpol: str="Nelson_Siegel") -> pd.DataFrame:
+    def forward_rate(self,product_year_fraction:list, type_interpol:str=TYPE_INTERPOL) -> pd.DataFrame:
         """
         Fonction pour calculer les taux forward de la courbe de taux.
 
@@ -311,7 +312,7 @@ class Rates_curve:
             self.__data_rate.at[i+1, "Forward_rate"] = ((((1 + next_rate) ** next_year_fraction) / ((1 + rate) ** year_fraction)) ** (1 / (next_year_fraction - year_fraction))) - 1
         return self.__data_rate
     
-    def create_product_rate_curve(self,product_year_fraction: list, type_interpol = "Nelson_Siegel") -> pd.DataFrame:
+    def create_product_rate_curve(self,product_year_fraction: list, type_interpol:str=TYPE_INTERPOL) -> pd.DataFrame:
         """
         Fonction pour créer une courbe de taux pour un produit donné.
 
@@ -324,7 +325,7 @@ class Rates_curve:
 
         return self.__data_rate
     
-    def shift_curve(self, shift:dict, type_interpol:str="Nelson_Siegel"):
+    def shift_curve(self, shift:dict, type_interpol:str=TYPE_INTERPOL):
         """
         Fonction pour shifter la courbe des taux, possibilité d'utiliser un shift linéaire ou non.
         Input:
@@ -333,14 +334,15 @@ class Rates_curve:
         """
         product_year_fraction = shift.keys()
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
-        self.curve_rate_product['Rate']+=self.curve_rate_product['Year_fraction'].map(shift)
+        print(type(self.curve_rate_product))
+        self.__data_rate['Rate']+=self.__data_rate['Year_fraction'].map(shift)
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
         pass
 
     def deep_copy(self,flat_rate:float=None):
         return Rates_curve(self.__path_rate,flat_rate)
     
-    def change_rate(self,product_year_fraction: list, fixed_rate, type_interpol = "Nelson_Siegel") -> pd.DataFrame:
+    def change_rate(self,product_year_fraction: list, fixed_rate, type_interpol = TYPE_INTERPOL) -> pd.DataFrame:
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
         self.__data_rate['Rate']= fixed_rate
         return self.__data_rate
@@ -368,7 +370,7 @@ def get_market(currency):
         raise ValueError(f"Currency {currency} is not supported ! Choose: EUR, USD, GBP, BRL")
 
 #Helper to calculate the yield of a fixed-income product.
-def calculate_yield(cashflows: dict, market_price:float, initial_rate:float=0.05):
+def calculate_yield(cashflows: dict, market_price:float, initial_rate:float=INITIAL_RATE):
     """
     Solve for Yield to Maturity (YTM) given a dictionary of cashflows.
     

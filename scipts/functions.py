@@ -1,3 +1,4 @@
+from constants import SOLVER_METHOD
 import pandas as pd
 import numpy as np
 from scipy.optimize import minimize
@@ -15,5 +16,5 @@ def objective_function(params, t, y):
 def optimize_nelson_siegel(maturities, rates):
     """Optimize Nelson-Siegel parameters."""
     initial_params = [1, 1, 1, 1]  # Initial guess for beta0, beta1, beta2, tau
-    result = minimize(objective_function, initial_params, args=(maturities, rates), method='L-BFGS-B')
+    result = minimize(objective_function, initial_params, args=(maturities, rates), method=SOLVER_METHOD)
     return result.x

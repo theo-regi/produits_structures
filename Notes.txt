@@ -5,3 +5,20 @@ Il faut essayer de réfléchirs aux produits structurés que l'on veut faire, et
 déjà codée, car on a de quoi faire swaps et tout là.
 
 Regarder également ce que l'on veut faire sur l'EQD pour un peu avoir de la visi sur les prochains devs.
+
+
+
+To DO:
+2: Récupérer les données taux
+
+3: Faire les modèles diffusion taux (Vasicek MC...) - prix (vol stocastique) / path dependent
+
+4: Faire les modèles de volatilité
+
+5: Faire des classes dérivatives Equities (Call / Put vanille)
+	-> pay-off, mesure risque, proba d'exec, stress scenario (choc vol par exemple)
+
+6: Faire une classe portefeuille EQD
+	-> Statégies optionelles	
+
+7: Faire les auto-calls
