@@ -8,12 +8,14 @@ Regarder également ce que l'on veut faire sur l'EQD pour un peu avoir de la vis
 
 
 
-To DO:
-2: Récupérer les données taux
+To DO: Pas se fier aux numéros pour l'ordre
+1: Récupérer les données taux / valider celles que l'on veut utiliser (voir classe FRED)
 
-3: Faire les modèles diffusion taux (Vasicek MC...) - prix (vol stocastique) / path dependent
+2: Faire les modèles diffusion taux (Vasicek MC...) - prix (vol stocastique) / path dependent
 
-4: Faire les modèles de volatilité
+3: Faire les modèles de volatilité
+
+4: Faire les classes VanillaOptions + abstract EQD
 
 5: Faire des classes dérivatives Equities (Call / Put vanille)
 	-> pay-off, mesure risque, proba d'exec, stress scenario (choc vol par exemple)
@@ -22,3 +24,6 @@ To DO:
 	-> Statégies optionelles	
 
 7: Faire les auto-calls
+
+8: On peut imaginer une classe Shares qui sera liée aux EQD, par exemple prend le spot du marché (plutot qu'un spot de 100), et construit un échéancier de divs.
+-> Permet de pricer les EQD directement dans les conditions de marchés, et choquer les paths MC avec les divs / les inclures dans les modèles fermés.
