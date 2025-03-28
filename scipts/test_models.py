@@ -63,22 +63,22 @@ class TestBSMModel(unittest.TestCase):
         """
         vega_call = self.bsm_call.vega(self.spot)
         vega_put = self.bsm_put.vega(self.spot)
-        self.assertAlmostEqual(vega_call, 40.74741153, places=4)
-        self.assertAlmostEqual(vega_put, 59.72596677, places=4)
+        self.assertAlmostEqual(vega_call, 36.78429503, places=4)
+        self.assertAlmostEqual(vega_put, 25.09569771, places=4)
 
     def test_theta_call(self):
         """
         Test the theta calculation for a call option.
         """
         theta = self.bsm_call.theta(self.spot)
-        self.assertAlmostEqual(theta, -2.6240073, places=3)
+        self.assertAlmostEqual(theta, -2.465482639, places=3)
 
     def test_theta_put(self):
         """
         Test the theta calculation for a put option.
         """
         theta = self.bsm_put.theta(self.spot)
-        self.assertAlmostEqual(theta, -3.096915934, places=3)
+        self.assertAlmostEqual(theta, -1.711705172, places=3)
 
     def test_rho_call(self):
         """

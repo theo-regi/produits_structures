@@ -56,8 +56,8 @@ class BSM:
         """
         Calculate Vega of the given option.
         """
-        d1_prime = 1/np.sqrt(2*np.pi) * np.exp(-self.d1()**2/2)
-        return spot * np.sqrt(self._option.T) * d1_prime * np.exp(-self._option._rate * self._option.T)
+        d1_prime = 1/np.sqrt(2*np.pi) * np.exp(-self.d1(spot)**2/2)
+        return spot * np.sqrt(self._option.T) * d1_prime * np.exp(-self._option._div_rate * self._option.T)
 
     def theta(self, spot:float, rate:float=None) -> float:
         """
@@ -65,13 +65,14 @@ class BSM:
         """
         if rate is None:
             rate = self._option._rate
-        q = rate - self._option._rate
+        q = rate - self._option._div_rate
 
-        d1_prime = 1/np.sqrt(2*np.pi) * np.exp(-self.d1()**2/2)
+        d1_prime = 1/np.sqrt(2*np.pi) * np.exp(-self.d1(spot)**2/2)
+
         if self._option._type == OptionType.CALL:
-            return -(spot * np.exp(-self._option._rate * self._option.T) * d1_prime * self._sigma) / (2 * np.sqrt(self._option.T)) + q*spot*self.d1(spot)* np.exp(-self._option._rate * self._option.T) - rate*self._option._strike*np.exp(-rate*self._option.T)*norm.cdf(self.d2(spot))
+            return -(spot * np.exp(-self._option._div_rate * self._option.T) * d1_prime * self._sigma) / (2 * np.sqrt(self._option.T)) + q*spot*norm.cdf(self.d1(spot))* np.exp(-self._option._div_rate * self._option.T) - rate*self._option._strike*np.exp(-rate*self._option.T)*norm.cdf(self.d2(spot))
         elif self._option._type == OptionType.PUT:
-            return -(spot * np.exp(-self._option._rate * self._option.T) * d1_prime * self._sigma) / (2 * np.sqrt(self._option.T)) - q*spot*self.d1(spot)* np.exp(-self._option._rate * self._option.T) + rate*self._option._strike*np.exp(-rate*self._option.T)*norm.cdf(-self.d2(spot))
+            return -(spot * np.exp(-self._option._div_rate * self._option.T) * d1_prime * self._sigma) / (2 * np.sqrt(self._option.T)) - q*spot*norm.cdf(self.d1(spot))* np.exp(-self._option._div_rate * self._option.T) + rate*self._option._strike*np.exp(-rate*self._option.T)*norm.cdf(-self.d2(spot))
         else:
             ValueError("Option type not supported !")
             pass
