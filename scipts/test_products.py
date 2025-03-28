@@ -1,7 +1,8 @@
 import numpy as np
 import unittest
-from products import ZCBond, FixedLeg, FloatLeg, Swap
+from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption
 from utils import Rates_curve
+from constants import OptionType
 
 class TestZCBond(unittest.TestCase):
     def setUp(self):
@@ -178,6 +179,30 @@ class TestSwap(unittest.TestCase):
         print(self.swap.fixed_leg._rates_c)
         print(self.swap.float_leg._rates_c)
         self.assertAlmostEqual(fixed_leg_rate, target_fixed_rate, places=6)
+
+class TestVanillaOption(unittest.TestCase):
+    def setUp(self):
+        self.spot=100 #Quite useless because base_spot = 100
+    
+    def test_payoff_call(self):
+        self.vanilla_option = VanillaOption("28/03/2025", "28/03/2026", OptionType.CALL, strike=95, notional=1)
+        """Test Payoff calculation"""
+        self.assertEqual(self.vanilla_option.payoff(self.spot), 5)
+
+    def test_npv_call(self):
+        self.vanilla_option = VanillaOption("28/03/2025", "28/03/2026", OptionType.CALL, strike=95, notional=1)
+        """Test NPV calculation using a 0.05 Interest rate"""
+        self.assertAlmostEqual(self.vanilla_option.npv(self.spot), 4.7561, places=4)
+
+    def test_pay_put(self):
+        self.vanilla_option = VanillaOption("28/03/2025", "28/03/2026", OptionType.PUT, strike=100, notional=1)
+        """Test Payoff calculation"""
+        self.assertEqual(self.vanilla_option.payoff(self.spot), 0)
+
+    def test_npv_put(self):
+        self.vanilla_option = VanillaOption("28/03/2025", "28/03/2026", OptionType.PUT, strike=100, notional=1)
+        """Test NPV calculation using a 0.05 Interest rate"""
+        self.assertAlmostEqual(self.vanilla_option.npv(self.spot), 0, places=4)
 
 if __name__ == "__main__":
     unittest.main()

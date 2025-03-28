@@ -1,4 +1,5 @@
 from constants import BASE_NOTIONAL, CONVENTION_DAY_COUNT, ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT
+from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, BASE_DIV_RATE
 
 import numpy as np
 from abc import ABC, abstractmethod
@@ -12,12 +13,12 @@ from scipy.stats import norm
 #-------------------------------------------------------------------------------------------------------
 
 #____________________________Classe pour les ZC (pas de call de l'abstraite)_____________________________
-#Zero-Coupon Class:: nominal (optionnal = 100 if not given)
+#Zero-Coupon Class:: nominal (optional = 100 if not given)
 class ZCBond():
     """
     Classe qui cherche à répliquer un bond zero coupon = 1 paiement unique à maturité.
     
-    Input: Nominal (optionnal)
+    Input: Nominal (optional)
 
     - NPV par un discount factor:: discount factor
     - NPV par un taux et une maturité:: rate, maturity
@@ -125,14 +126,14 @@ class FixedIncomeProduct(ABC):
     Abstract class for fixed-income products:
 
     Input:
-    - forward rates curve (dict, non optionnal)
-    - start date (string, non optionnal)
-    - end date (string, non optionnal)
-    - paiments frequency (string, non optionnal)
-    - day count convention (string, optionnal, equal to 30/360 if not provided)
-    - rolling convention (string, optionnal, equal to Modified Following if not provided)
-    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
-    - notional (float, optionnal, will quote in percent if not provided)
+    - forward rates curve (dict, non optional)
+    - start date (string, non optional)
+    - end date (string, non optional)
+    - paiments frequency (string, non optional)
+    - day count convention (string, optional, equal to 30/360 if not provided)
+    - rolling convention (string, optional, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optional)
+    - notional (float, optional, will quote in percent if not provided)
 
     Abstract class to build the different types of legs for fixed income instruments.
     For fixed income leg, rate_curve will be a flat rate curve.
@@ -207,14 +208,14 @@ class FixedLeg(FixedIncomeProduct):
     Utilisée pour les swaps et fixed bonds.
 
     Input:
-    - forward rates curve (dict, non optionnal)
-    - start date (string, non optionnal)
-    - end date (string, non optionnal)
-    - paiments frequency (string, non optionnal)
-    - day count convention (string, optionnal, equal to 30/360 if not provided)
-    - rolling convention (string, optionnal, equal to Modified Following if not provided)
-    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
-    - notional (float, optionnal, will quote in percent if not provided)
+    - forward rates curve (dict, non optional)
+    - start date (string, non optional)
+    - end date (string, non optional)
+    - paiments frequency (string, non optional)
+    - day count convention (string, optional, equal to 30/360 if not provided)
+    - rolling convention (string, optional, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optional)
+    - notional (float, optional, will quote in percent if not provided)
 
     Returns: class with functions of NPV, duration, convexity, pv01, etc.
     For fixed income leg, rate_curve will be a flat rate curve.
@@ -257,7 +258,7 @@ class FixedLeg(FixedIncomeProduct):
         Calculate the sensitivity of the fixed leg.
 
         Input:
-        - shift (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
+        - shift (dict, optional): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
         if shift is None:
             s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
@@ -273,7 +274,7 @@ class FixedLeg(FixedIncomeProduct):
         Calculate the convexity of the fixed leg.
 
         Input:
-        - shift (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps (0.01 input).
+        - shift (dict, optional): dictionnary of shift for each date, if not given -> linear shift of 1bps (0.01 input).
         """
         if shift is None:
             s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
@@ -316,7 +317,7 @@ class FixedLeg(FixedIncomeProduct):
         """
         Build the paiements schedule for the fixed leg (RAW).
         Input:
-        - exchange_notionnal (string, optionnal, equal to False if not provided), provide True for bonds.
+        - exchange_notionnal (string, optional, equal to False if not provided), provide True for bonds.
         """
         for i in range(len(self._paiments_schedule)-1):
             date = self._paiments_schedule[i]
@@ -352,14 +353,14 @@ class FloatLeg(FixedIncomeProduct):
     Utilisée pour les swaps et FRNs.
 
     Input:
-    - forward rates curve (dict, non optionnal)
-    - start date (string, non optionnal)
-    - end date (string, non optionnal)
-    - paiments frequency (string, non optionnal)
-    - day count convention (string, optionnal, equal to 30/360 if not provided)
-    - rolling convention (string, optionnal, equal to Modified Following if not provided)
-    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
-    - notional (float, optionnal, will quote in percent if not provided)
+    - forward rates curve (dict, non optional)
+    - start date (string, non optional)
+    - end date (string, non optional)
+    - paiments frequency (string, non optional)
+    - day count convention (string, optional, equal to 30/360 if not provided)
+    - rolling convention (string, optional, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optional)
+    - notional (float, optional, will quote in percent if not provided)
     """
     def __init__(self, rate_curve: Rates_curve, start_date:str, end_date:str,
                  paiement_freq:str, currency:str, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION,
@@ -398,8 +399,8 @@ class FloatLeg(FixedIncomeProduct):
         Calculate the sensitivity of the float leg.
 
         Input:
-        - shift_fw (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
-        - shift_discounting (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
+        - shift_fw (dict, optional): dictionnary of shift for each date, if not given -> linear shift of 1bps.
+        - shift_discounting (dict, optional): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
         if shift_fw is None:
             s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
@@ -423,8 +424,8 @@ class FloatLeg(FixedIncomeProduct):
         Calculate the convexity of the float leg.
 
         Input:
-        - shift_fw (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
-        - shift_discounting (dict, optionnal): dictionnary of shift for each date, if not given -> linear shift of 1bps.
+        - shift_fw (dict, optional): dictionnary of shift for each date, if not given -> linear shift of 1bps.
+        - shift_discounting (dict, optional): dictionnary of shift for each date, if not given -> linear shift of 1bps.
         """
         if shift_fw is None:
             s = np.ones(len(self._paiments_schedule)) * BASE_SHIFT
@@ -476,7 +477,7 @@ class FloatLeg(FixedIncomeProduct):
         """
         Build the paiements schedule for the fixed leg.
         Input:
-        - exchange_notionnal (string, optionnal, equal to False if not provided), provide True for bonds.
+        - exchange_notionnal (string, optional, equal to False if not provided), provide True for bonds.
         """
 
         for i in range(len(self._paiments_schedule)-1):
@@ -587,14 +588,14 @@ class Swap(FixedIncomeProduct):
     - La classe permet d'utiliser les fonctions de FixedLeg et FloatLeg pour trouver le taux d'un swap. 
 
        Input:
-    - forward rates curve (dict, non optionnal)
-    - start date (string, non optionnal)
-    - end date (string, non optionnal)
-    - paiments frequency (string, non optionnal)
-    - day count convention (string, optionnal, equal to 30/360 if not provided)
-    - rolling convention (string, optionnal, equal to Modified Following if not provided)
-    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
-    - notional (float, optionnal, will quote in percent if not provided)
+    - forward rates curve (dict, non optional)
+    - start date (string, non optional)
+    - end date (string, non optional)
+    - paiments frequency (string, non optional)
+    - day count convention (string, optional, equal to 30/360 if not provided)
+    - rolling convention (string, optional, equal to Modified Following if not provided)
+    - discounting curve to discount with a different curve than the forward rates curve (dict, optional)
+    - notional (float, optional, will quote in percent if not provided)
     """
     def __init__ (self, rate_curve: Rates_curve, start_date:str, end_date:str, paiement_freq:str, currency:str, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, discounting_curve:Rates_curve=None, notional:float=BASE_NOTIONAL, spread:float=0, format:str=FORMAT_DATE, interpol: str=TYPE_INTERPOL, exchange_notional: str=EXCHANGE_NOTIONAL) -> None:
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
@@ -671,14 +672,119 @@ class Swap(FixedIncomeProduct):
         return self.float_leg.calculate_pv01() - self.fixed_leg.calculate_pv01()
 
 
-
-
-
-
-
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Classes de produits généralistes en equity derivatives---------------------
 #-------------------------------------------------------------------------------------------------------
+
+#____________________________Classe abstraite pour les produits d'Equity________________________________
+class EQDProduct(ABC):
+    """"
+    Abstract class for equity derivatives products.
+
+    Input:
+    -Type (Enum, optional) (call / put)
+    -Spot (float, optional)
+    -Strike (float, optional)
+    -Rate (float, optional)
+    
+    -date format (string, optional)
+    -currency (string, optional)
+    -start date (string, optional)
+    -end date (string, optional) / options dates
+    -day count convention (string, optional, equal to 30/360 if not provided)
+    -rolling convention (string, optional, equal to Modified Following if not provided)
+    -notional (float, optional, will quote in percent if not provided) / nb underlying shares / equities
+    
+    Returns:
+    - NPV
+    - Greeks: Delta / Gamma / Rho / Theta / Vega
+    """
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY) -> None:
+        self._start_date = start_date
+        self._end_date = end_date
+        self._type = type
+        self._strike = strike
+        self._rate = rate
+        self._day_count = day_count
+        self._rolling_conv = rolling_conv
+        self._notional = notional
+    
+        self._format=format_date
+        self._currency=currency
+
+        self._paiments_schedule = \
+            PaymentScheduleHandler(self._start_date, self._end_date,
+            "none", self._format).build_schedule(\
+            convention=self._day_count, rolling_convention=self._rolling_conv, market=\
+            utils.get_market(currency=self._currency))
+        
+        self.T = self._paiments_schedule[-1]
+        pass
+
+    @property
+    @abstractmethod
+    def npv(self) -> float:
+        """
+        Calculate the NPV of the equity derivative product.
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def payoff(self) -> float:
+        """
+        Calculate the payoff of the equity derivative product.
+        """
+        pass
+
+
+#Class for vanilla equities options:
+class VanillaOption(EQDProduct):
+    """"
+    Abstract class for equity derivatives products.
+
+    Input:
+    -Type (Enum, optional) (call / put)
+    -Spot (float, optional)
+    -Strike (float, optional)
+    -Rate (float, optional)
+    
+    -date format (string, optional)
+    -currency (string, optional)
+    -start date (string, optional)
+    -end date (string, optional) / options dates
+    -day count convention (string, optional, equal to 30/360 if not provided)
+    -rolling convention (string, optional, equal to Modified Following if not provided)
+    -notional (float, optional, will quote in percent if not provided) / nb underlying shares / equities
+    
+    Returns:
+    - NPV
+    - Greeks: Delta / Gamma / Rho / Theta / Vega
+    """
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, div_rate:str=BASE_DIV_RATE) -> None:
+        super().__init__(start_date, end_date, type, strike, rate, day_count, rolling_conv, notional, format_date, currency)
+        self._div_rate=div_rate
+        pass
+
+    def npv(self, spot:float=BASE_SPOT) -> float:
+        """
+        Calculate the NPV of the equity derivative product.
+        """
+        return self.payoff(spot) * self._notional * np.exp(-self._rate * self.T)
+    
+    def payoff(self, spot:float=BASE_SPOT) -> float:
+        """
+        Calculate the payoff of the equity derivative product.
+        """
+        if self._type == OptionType.CALL:
+            return max(spot - self._strike, 0)
+        elif self._type == OptionType.PUT:
+            return max(self._strike - spot, 0)
+        else:
+            ValueError("Option type not recognized !")
+            pass
+        
+
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
 #de dividendes etc.
@@ -687,73 +793,28 @@ class Share():
     """
     Class for shares/stocks.
 
-    Input:
-    - spot price (float, non optionnal)
-    - dividend schedule (dict, optionnal) (voir si besoin de build un échéancier comme sur le FI / genre paiement annuel des divs à partir d'une date)
-    - diffusion model
-    - risk free rate curve to calculate forward price + discounting
+    Parameters:
+    - spot price (float, non optional)
+    - dividend schedule (dict, optional) (voir si besoin de build un échéancier comme sur le FI / genre paiement annuel des divs à partir d'une date)
     
     Returns:
     - Price of the share
     - Dividend schedule
-    - Forward price at risk free rate
     """
-    def __init__(self, spot_price: float) -> None:
+    def __init__(self) -> None:
         pass
 
-#____________________________Classe abstraite pour les produits d'Equity________________________________
-class EQDProduct(ABC):
-    """"
-    Abstract class for equity derivatives products.
+    @property
+    def spot_price(self) -> float:
+        """
+        Returns the spot price of the share.
+        """
+        return self._spot_price
+    
+    @property
+    def schedule_dividends(self) -> dict:
+        """
+        Returns the dividend schedule of the share.
+        """
+        return self._schedule_dividends
 
-    Input:
-    -underlying equity (class, non optionnal)
-    -forward rates curve (dict, non optionnal) ?
-    -start date (string, non optionnal)
-    -end date (string, non optionnal) / options dates
-    -paiments frequency (string, non optionnal) (for divs par exemple/coupon pour des reverses convertibles / jsais pas)
-    -day count convention (string, optionnal, equal to 30/360 if not provided)
-    -rolling convention (string, optionnal, equal to Modified Following if not provided)
-    -discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
-    -notional (float, optionnal, will quote in percent if not provided) / nb underlying shares / equities
-
-    Returns:
-    - NPV
-    - Greeks: Delta / Gamma / Rho / Theta / Vega
-    - Sensitivities : VaR / CVaR ?
-    """
-    def __init__(self):
-        pass
-
-#Class for vanilla equities options:
-class VanillaOption(EQDProduct):
-    """
-    Class for vanilla options on equities."
-
-    Input:
-    - underlying equity (class, non optionnal)
-    - start date (string, non optionnal)
-    - end date (string, non optionnal) / options dates
-    - type of option (string, non optionnal) (call / put)
-    - strike price (float, non optionnal)
-    - day count convention (string, optionnal, equal to 30/360 if not provided)
-    - rolling convention (string, optionnal, equal to Modified Following if not provided)
-    - discounting curve to discount with a different curve than the forward rates curve (dict, optionnal)
-    - notional (float, optionnal, will quote in percent if not provided) / nb underlying shares / equities
-    - type of exercise (string, optionnal) (American / European / Bermudan ?)
-
-    Returns:
-    - NPV
-    - Greeks: Delta / Gamma / Rho / Theta / Vega
-    - Sensitivities : VaR / CVaR ?
-    """
-    def __init__(self):
-        pass
-
-"""
-Après à quel point on veut aller dans la complexité des produits/ou avoir des produits sur mesures.
-Est-ce qu'on veut des produits structurés (reverse convertibles, autocallables, etc.) ou des produits plus
-simples (options, futures, etc.)
-
-Est-ce qu'on peut utiliser direct la classe option pour faire des barrières, des digitals, etc.
-"""
