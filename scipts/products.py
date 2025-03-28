@@ -148,6 +148,7 @@ class FixedIncomeProduct(ABC):
         self._paiement_freq=paiement_freq
         self._currency=currency
         self._day_count=day_count
+        self._discounting_curve = discounting_curve
         self._rolling_conv=rolling_conv
         self._notional = notional
         self._format = format
@@ -600,20 +601,38 @@ class Swap(FixedIncomeProduct):
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
 
         self.float_leg = FloatLeg(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
-        self.fixed_rate = self.calculate_fixed_rate()
-
-        # Create a fixed rate curve for the FixedLeg
-        self._rate_curve_fixed=rate_curve.deep_copy(self.fixed_rate)
-        self.fixed_leg = FixedLeg(self._rate_curve_fixed, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional,spread, format, "Flat", exchange_notional)
-
 
     def calculate_fixed_rate(self) -> float:
         """
-        Calculate the fixed rate of the swap.
+        Calculate the fixed rate of the swap and initialize the FixedLeg.
         """
+        # Calculer la NPV et PV01 de la jambe flottante
         float_npv = self.float_leg.calculate_npv()
         float_pv01 = self.float_leg.calculate_pv01()
+
+        # Calculer le taux fixe
         fixed_rate = (float_npv / float_pv01) / 10000
+
+        # Créer une copie de la courbe de taux avec le taux fixe
+        self._rate_curve_fixed = self._rate_curve.deep_copy(fixed_rate)
+
+        # Initialiser la jambe fixe
+        self.fixed_leg = FixedLeg(
+            self._rate_curve_fixed,
+            self._start_date,
+            self._end_date,
+            self._paiement_freq,
+            self._currency,
+            self._day_count,
+            self._rolling_conv,
+            self._discounting_curve,
+            self._notional,
+            self._spread,
+            self._format,
+            "Flat",
+            self._exchange_notional
+        )
+
         return fixed_rate
     
     def calculate_npv(self) -> float:
