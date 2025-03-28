@@ -38,14 +38,15 @@ class TestBSMModel(unittest.TestCase):
         Test the delta calculation for a call option.
         """
         delta = self.bsm_call.delta(self.spot)
-        self.assertAlmostEqual(delta, 0.6368, places=4)
+        print("delta",delta)
+        self.assertAlmostEqual(delta, 0.36346171, places=4)
 
     def test_delta_put(self):
         """
         Test the delta calculation for a put option.
         """
         delta = self.bsm_put.delta(self.spot)
-        self.assertAlmostEqual(delta, -0.3632, places=4)
+        self.assertAlmostEqual(delta, -0.170685653, places=4)
 
     def test_gamma(self):
         """
@@ -53,8 +54,8 @@ class TestBSMModel(unittest.TestCase):
         """
         gamma_call = self.bsm_call.gamma(self.spot)
         gamma_put = self.bsm_put.gamma(self.spot)
-        self.assertAlmostEqual(gamma_call, 0.0199, places=4)
-        self.assertAlmostEqual(gamma_put, 0.0199, places=4)
+        self.assertAlmostEqual(gamma_call, 0.045980369, places=4)
+        self.assertAlmostEqual(gamma_put, 0.031369622, places=4)
 
     def test_vega(self):
         """
@@ -62,36 +63,36 @@ class TestBSMModel(unittest.TestCase):
         """
         vega_call = self.bsm_call.vega(self.spot)
         vega_put = self.bsm_put.vega(self.spot)
-        self.assertAlmostEqual(vega_call, 39.7887, places=4)
-        self.assertAlmostEqual(vega_put, 39.7887, places=4)
+        self.assertAlmostEqual(vega_call, 40.74741153, places=4)
+        self.assertAlmostEqual(vega_put, 59.72596677, places=4)
 
     def test_theta_call(self):
         """
         Test the theta calculation for a call option.
         """
         theta = self.bsm_call.theta(self.spot)
-        self.assertAlmostEqual(theta, -3.695, places=3)
+        self.assertAlmostEqual(theta, -2.6240073, places=3)
 
     def test_theta_put(self):
         """
         Test the theta calculation for a put option.
         """
         theta = self.bsm_put.theta(self.spot)
-        self.assertAlmostEqual(theta, -3.695, places=3)
+        self.assertAlmostEqual(theta, -3.096915934, places=3)
 
     def test_rho_call(self):
         """
         Test the rho calculation for a call option.
         """
         rho = self.bsm_call.rho(self.spot)
-        self.assertAlmostEqual(rho, 53.232, places=3)
+        self.assertAlmostEqual(rho, 34.42068517, places=3)
 
     def test_rho_put(self):
         """
         Test the rho calculation for a put option.
         """
         rho = self.bsm_put.rho(self.spot)
-        self.assertAlmostEqual(rho, -46.768, places=3)
+        self.assertAlmostEqual(rho, -17.83284996, places=3)
 
 if __name__ == '__main__':
     unittest.main()

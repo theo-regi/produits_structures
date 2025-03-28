@@ -26,8 +26,6 @@ class BSM:
         Calculate the price of the given option.
         """
         if self._option._type == OptionType.CALL:
-            print("d1", self.d1(spot))
-            print("d2", self.d2(spot))
             return spot * norm.cdf(self.d1(spot)) * np.exp(-self._option._div_rate*self._option.T) - self._option._strike * np.exp(-self._option._rate * self._option.T) * norm.cdf(self.d2(spot))
         elif self._option._type == OptionType.PUT:
             return self._option._strike * np.exp(-self._option._rate * self._option.T) * norm.cdf(-self.d2(spot)) - spot * norm.cdf(-self.d1(spot)) * np.exp(-self._option._div_rate*self._option.T)
@@ -39,10 +37,10 @@ class BSM:
         """
         Calculate Delta of the given option.
         """
-        if self._option == OptionType.CALL:
-            return norm.cdf(self.d1(spot)) * np.exp(-self._option._rate * self._option.T)
-        elif self._option == OptionType.PUT:
-            return (norm.cdf(self.d1(spot))-1) * np.exp(-self._option._rate * self._option.T)
+        if self._option._type == OptionType.CALL:
+            return norm.cdf(self.d1(spot)) * np.exp(-self._option._div_rate * self._option.T)
+        elif self._option._type == OptionType.PUT:
+            return (norm.cdf(self.d1(spot))-1) * np.exp(-self._option._div_rate * self._option.T)
         else:
             ValueError("Option type not supported !")
             pass
@@ -51,8 +49,8 @@ class BSM:
         """
         Calculate Gamma of the given option.
         """
-        d1_prime = 1/np.sqrt(2*np.pi) * np.exp(-self.d1()**2/2)
-        return d1_prime * np.exp(-self._option._rate * self._option.T) / (spot * self._sigma * np.sqrt(self._option.T))
+        d1_prime = 1/np.sqrt(2*np.pi) * np.exp(-(self.d1(spot)**2)/2)
+        return d1_prime * np.exp(-self._option._div_rate * self._option.T) / (spot * self._sigma * np.sqrt(self._option.T))
 
     def vega(self, spot:float) -> float:
         """
