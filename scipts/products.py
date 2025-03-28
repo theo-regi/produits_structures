@@ -601,12 +601,6 @@ class Swap(FixedIncomeProduct):
         super().__init__(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
 
         self.float_leg = FloatLeg(rate_curve, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional, spread, format, interpol, exchange_notional)
-        
-        # Create a fixed rate curve for the FixedLeg
-        #self.fixed_rate = self.calculate_fixed_rate()
-        #self._rate_curve_fixed=rate_curve.deep_copy(self.fixed_rate)
-        #self.fixed_leg = FixedLeg(self._rate_curve_fixed, start_date, end_date, paiement_freq, currency, day_count, rolling_conv, discounting_curve, notional,spread, format, "Flat", exchange_notional)
-
 
     def calculate_fixed_rate(self) -> float:
         """
