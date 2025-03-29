@@ -1,6 +1,9 @@
-from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, CONVENTION_DAY_COUNT, ROLLING_CONVENTION, BASE_NOTIONAL, FORMAT_DATE, BASE_CURRENCY, BASE_MODEL, BASE_SIGMA, BASE_DIV_RATE
+from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, CONVENTION_DAY_COUNT, ROLLING_CONVENTION, BASE_NOTIONAL,\
+    FORMAT_DATE, BASE_CURRENCY, BASE_MODEL, BASE_SIGMA, BASE_DIV_RATE, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT
 from products import VanillaOption
+from utils import ImpliedVolatilityFinder
 from models import BSM
+import numpy as np
 dict_models = {"Black-Scholes-Merton": BSM}
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différentes classes prices---------------------
@@ -27,7 +30,7 @@ class OptionPricer:
     - sigma: Implied volatility (optional).
     - rate: Risk-free interest rate (optional).
     """
-    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, model:str=BASE_MODEL, spot:float=BASE_SPOT, strike:float=BASE_STRIKE, div_rate:float=BASE_DIV_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None, rate:float=BASE_RATE) -> None:
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, model:str=BASE_MODEL, spot:float=BASE_SPOT, strike:float=BASE_STRIKE, div_rate:float=BASE_DIV_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None, rate:float=BASE_RATE, price:float=None) -> None:
         self._model = model
         self._start_date = start_date
         self._end_date = end_date
@@ -43,6 +46,9 @@ class OptionPricer:
         self._sigma = sigma
         self._rate = rate
 
+        self.payoff = None
+        self._price = price
+
     @property
     def price(self):
         if self._model == "Black-Scholes-Merton":
@@ -50,8 +56,11 @@ class OptionPricer:
                 self._sigma = BASE_SIGMA
             
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._sigma, self._option)
-            return self._model.price(self._spot)
+            self._model = dict_models[self._model](self._option, self._sigma)
+            price = self._model.price(self._spot)
+            self.payoff = price * np.exp(self._rate * self._option.T) * self._notional
+            print(self.payoff)
+            return price
         
     @property
     def delta(self):
@@ -60,7 +69,7 @@ class OptionPricer:
                 self._sigma = BASE_SIGMA
             
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._sigma, self._option)
+            self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.delta(self._spot)
 
     @property
@@ -70,7 +79,7 @@ class OptionPricer:
                 self._sigma = BASE_SIGMA
             
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._sigma, self._option)
+            self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.gamma(self._spot)
 
     @property
@@ -80,7 +89,7 @@ class OptionPricer:
                 self._sigma = BASE_SIGMA
             
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._sigma, self._option)
+            self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.vega(self._spot)
 
     @property
@@ -90,7 +99,7 @@ class OptionPricer:
                 self._sigma = BASE_SIGMA
             
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._sigma, self._option)
+            self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.theta(self._spot, self._rate)
 
     @property
@@ -100,6 +109,14 @@ class OptionPricer:
                 self._sigma = BASE_SIGMA
             
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._sigma, self._option)
+            self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.rho(self._spot, self._rate)
 
+    def implied_vol(self, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> float:
+        if self._model == "Black-Scholes-Merton":
+            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate, price=self._price)
+            self._model = dict_models[self._model]
+            volatility_finder = ImpliedVolatilityFinder(model=self._model, option=self._option, price=self._price, method=method, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point, spot=self._spot)
+            return volatility_finder.find_implied_volatility()
+        else:
+            raise ValueError("Model not supported for implied volatility calculation. Please choose Black-Scholes-Merton.")

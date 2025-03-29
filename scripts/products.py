@@ -693,7 +693,7 @@ class EQDProduct(ABC):
     - NPV
     - Greeks: Delta / Gamma / Rho / Theta / Vega
     """
-    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY) -> None:
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, price:float=None) -> None:
         self._start_date = start_date
         self._end_date = end_date
         self._type = type
@@ -705,6 +705,7 @@ class EQDProduct(ABC):
     
         self._format=format_date
         self._currency=currency
+        self._price=price
 
         self._paiments_schedule = \
             PaymentScheduleHandler(self._start_date, self._end_date,
@@ -755,8 +756,8 @@ class VanillaOption(EQDProduct):
     - NPV
     - Greeks: Delta / Gamma / Rho / Theta / Vega
     """
-    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, div_rate:str=BASE_DIV_RATE) -> None:
-        super().__init__(start_date, end_date, type, strike, rate, day_count, rolling_conv, notional, format_date, currency)
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, div_rate:str=BASE_DIV_RATE, price:float=None) -> None:
+        super().__init__(start_date, end_date, type, strike, rate, day_count, rolling_conv, notional, format_date, currency, price)
         self._div_rate=div_rate
         pass
 
@@ -778,7 +779,6 @@ class VanillaOption(EQDProduct):
             ValueError("Option type not recognized !")
             pass
         
-
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
 #de dividendes etc.

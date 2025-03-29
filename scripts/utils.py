@@ -350,7 +350,66 @@ class Rates_curve:
     def return_data_frame(self):
         return self.__data_rate
 
-#Classe de vol
+#Classe de recherche de la volatilité implicite
+class ImpliedVolatilityFinder:
+    """
+    Class to find implied volatility on markets via BSM Model and different methods.
+    Supported methods: Dichotomy, Optimization, Newton-Raphson.
+    """
+    def __init__(self, model, option, price:float, method:str, tolerance:float, nb_iter:float, bounds:tuple, starting_point:float, spot:float) -> None:
+        self._model=model
+        self._option = option
+        self._price = price
+        self._method = method
+        self._spot=spot
+
+        self._tolerance = tolerance
+        self._nb_iter = nb_iter
+        self._bounds = bounds
+        self._starting_point = starting_point
+
+    def find_implied_volatility(self):
+        if self._method == "Dichotomy":
+            return self.__dichotomy
+        elif self._method == "Optimization":
+            return self.__optimization
+        elif self._method == "Newton-Raphson":
+            return self.__newton_raphson
+        else:
+            raise ValueError(f"Method {self._method} is not supported. Choose: Dichotomy, Optimization, Newton-Raphson")
+
+    @property
+    def __dichotomy(self) -> float:
+        """
+        Find the implied volatility using the dichotomy method.
+        """
+        fct_vol=lambda volatility:self._model(self._option, volatility)
+        low, high = self._bounds[0], self._bounds[1] 
+        for _ in range(self._nb_iter):
+            mid = (low+high)/2
+            price = fct_vol(mid).price(self._spot)
+
+            if abs(price - self._price) < self._tolerance:
+                return mid
+            elif price > self._price:
+                high=mid
+            else:
+                low=mid
+        return None
+
+    @property
+    def __optimization(self) -> float:
+        """
+        Find the implied volatility using optimization method.
+        """
+        pass
+    
+    @property
+    def __newton_raphson(self) -> float:
+        """
+        Find the implied volatility using Newton-Raphson method.
+        """
+        pass
 
 #Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
 

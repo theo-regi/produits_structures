@@ -1,8 +1,7 @@
-from unittest import TestCase
 import unittest
-from datetime import datetime as dt
-
-from utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
+from scripts.utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
+from scripts.pricers import OptionPricer
+from constants import OptionType
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour tester les classes unitaires-----------------------------------
@@ -219,6 +218,27 @@ class TestRatesCurve(unittest.TestCase):
         col1 = result['Forward_rate'].tolist()
         col2 = shifted_rates['Forward_rate'].to_list()
         self.assertTrue(any(a != b for a, b in zip(col1, col2)))
+
+class TestImpliedVolatilityFinder(unittest.TestCase):
+    def setUp(self):
+        """Set up test cases with different parameters."""
+        self.pricer =OptionPricer(
+            start_date="12/03/2025",
+            end_date="14/03/2025",
+            type=OptionType.CALL,
+            model="Black-Scholes-Merton",
+            spot=216.98,
+            strike=217.5,
+            div_rate=0,
+            currency="EUR",
+            rate=0,
+            notional=1,
+            price=2.52)
     
+    def test_implied_volatility_dichotomie(self):
+        """Test implied volatility calculation using dichotomie method."""
+        result = self.pricer.implied_vol(method="Dichotomy")
+        self.assertAlmostEqual(result, 0.42363, places=2)
+
 if __name__ == "__main__":
     unittest.main()

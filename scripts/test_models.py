@@ -15,8 +15,8 @@ class TestBSMModel(unittest.TestCase):
             start_date="28/03/2025", end_date="28/03/2026", type=OptionType.PUT, strike=95, rate=0.05, div_rate=0.03)
         
         self.sigma = 0.08
-        self.bsm_call = BSM(self.sigma, self.option_call)
-        self.bsm_put = BSM(self.sigma, self.option_put)
+        self.bsm_call = BSM(self.option_call, self.sigma)
+        self.bsm_put = BSM(self.option_put, self.sigma)
         self.spot = 100
 
     def test_price_call(self):

@@ -11,7 +11,7 @@ class BSM:
     """
     Black-Scholes-Merton model for pricing options.
     """
-    def __init__(self, sigma:float, option:EQDProduct) -> None:
+    def __init__(self, option:EQDProduct, sigma:float=None) -> None:
         self._sigma = sigma
         self._option = option
 
@@ -90,6 +90,7 @@ class BSM:
         else:
             ValueError("Option type not supported !")
             pass
+
 
 #Black 76:
 

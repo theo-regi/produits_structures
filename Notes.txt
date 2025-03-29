@@ -6,9 +6,11 @@ déjà codée, car on a de quoi faire swaps et tout là.
 
 Regarder également ce que l'on veut faire sur l'EQD pour un peu avoir de la visi sur les prochains devs.
 
-
+MOVE INDEX = vol sur les marchés de taux
 
 To DO: Pas se fier aux numéros pour l'ordre
+-Pour théo: faire un clean des constantes, garder au niveau de la classe qui appelle et faire redescendre dans le système -> remplacer par None if not given car constant given par la chaine
+
 1: Récupérer les données taux / valider celles que l'on veut utiliser (voir classe FRED)
 
 2: Faire les modèles diffusion taux (Vasicek MC...) - prix (vol stocastique) / path dependent

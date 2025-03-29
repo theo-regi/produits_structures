@@ -14,7 +14,8 @@ class TestPricer(unittest.TestCase):
             div_rate=0.03,
             currency="EUR",
             sigma=0.08,
-            rate=0.05)
+            rate=0.05,
+            notional=1)
 
     def test_price(self):
         # Example test case for price calculation
@@ -39,6 +40,11 @@ class TestPricer(unittest.TestCase):
     def test_rho(self):
         # Example test case for rho calculation
         self.assertAlmostEqual(self.pricer.rho, 34.42068517, places=4)
+
+    def test_payoff(self):
+        # Example test case for payoff calculation
+        self.pricer.price
+        self.assertAlmostEqual(self.pricer.payoff, 2.024207616, places=4)
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@ import enum
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour modifier les constantes de base de l'appli---------------------
 #-------------------------------------------------------------------------------------------------------
-#GENERAL UTILITIES CONSTANTS:
+#_______________________________GENERAL UTILITIES CONSTANTS:_______________________________
 #Base type of interpolation for curves, will be used if not provided by the user.
 TYPE_INTERPOL = 'Quadratic' #Supported types: 'Linear', 'Quadratic', 'Nelson_Siegel', 'Flat'
 
@@ -18,11 +18,23 @@ ROLLING_CONVENTION = 'Modified Following' #Supported conventions: 'Following', '
 #Solver methode for optimization, will be used if not provided by the user.
 SOLVER_METHOD = 'L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', 'Powell', 'TNC'
 
-#GENERAL FINANCIAL PRODUCTS CONSTANTS:
+#Tolerance for the solver
+TOLERANCE = 1e-8
+
+#Max iterations for the solver
+MAX_ITER = 1000
+
+#Bounds for the solver (volatility)
+BOUNDS = (1e-4, 5.0)
+
+#Starting point for the solver (volatility)
+STARTING_POINT = 0.2
+
+#_______________________________GENERAL FINANCIAL PRODUCTS CONSTANTS:_______________________________
 #Base notional for the instruments, will be used if not provided by the user.
 BASE_NOTIONAL = 100 #Use 100 for percentage
 
-#FIXED INCOME PRODUCTS CONSTANTS:
+#_______________________________FIXED INCOME PRODUCTS CONSTANTS:_______________________________
 #Base shift for the instruments, will be used if not provided by the user.
 BASE_SHIFT = 0.01   #Use 0.01 for 1bps
 
@@ -32,7 +44,7 @@ EXCHANGE_NOTIONAL = False
 #For Yield calculation, initial guess for the solver
 INITIAL_RATE = 0.05
 
-#EQD PRODUCTS CONSTANTS:
+#_______________________________EQD PRODUCTS CONSTANTS:_______________________________
 #Base Spot for EQD pricings, will be used if not provided by the functions.
 BASE_SPOT = 100
 
@@ -54,6 +66,10 @@ BASE_MODEL = 'Black-Scholes-Merton'
 #Base sigma for options (fixed implied vol)
 BASE_SIGMA = 0.05
 
+#______________________________IMPLIED VOLATILITY CALCULATION CONSTANTS:_______________________________
+BASE_METHOD_VOL = 'Dichotomy' #Method used for implied volatility calculation (for utils.volatility): Dichotomy, Optimization, Newton-Raphson
+
+#_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT
 class OptionType(enum.Enum):
     CALL = 1.0
