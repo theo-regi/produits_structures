@@ -154,8 +154,10 @@ class FixedIncomeProduct(ABC):
         self._format = format
         self._cashflows = {}
         self._cashflows_cap ={}
+        self._cashflows_floor ={}
         self._cashflows_r = {}
         self._cashflows_cap_r ={}
+        self._cashflows_floor_r ={}
         self._exchange_notional = exchange_notional
         self._spread = spread
         self._interpol = interpol
@@ -166,11 +168,11 @@ class FixedIncomeProduct(ABC):
             utils.get_market(currency=self._currency))
 
     @abstractmethod
-    def calculate_npv(self) -> float:
+    def calculate_npv(self,cashflows) -> float:
         """
         Returns the product NPV as float
         """
-        return sum(entry["NPV"] for entry in self._cashflows.values())
+        return sum(entry["NPV"] for entry in cashflows.values())
     
     @abstractmethod
     def calculate_duration(self) -> float:
@@ -178,7 +180,7 @@ class FixedIncomeProduct(ABC):
         Returns duration of the product
         """
         duration_ti = sum(value["NPV"] * key for key, value in self._cashflows.items())
-        return duration_ti / self.calculate_npv()
+        return duration_ti / self.calculate_npv(self._cashflows)
 
     @abstractmethod
     def calculate_sensitivity(self) -> float:
@@ -241,11 +243,11 @@ class FixedLeg(FixedIncomeProduct):
         self.build_cashflows_npv()
         pass
 
-    def calculate_npv(self) -> float:
+    def calculate_npv(self,cashflows) -> float:
         """
         Calculate the NPV of the fixed leg.
         """
-        return super().calculate_npv()
+        return super().calculate_npv(cashflows)
 
     def calculate_duration(self) -> float:
         """
@@ -266,8 +268,8 @@ class FixedLeg(FixedIncomeProduct):
         shifted_curve = self._discounting_c.deep_copy()
         shifted_curve.shift_curve(shift, self._interpol)
         shift_fixed_leg = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
-        shift_fixed_leg.calculate_npv()
-        return shift_fixed_leg.calculate_npv() - self.calculate_npv()
+        shift_fixed_leg.calculate_npv(self._cashflows)
+        return shift_fixed_leg.calculate_npv(shift_fixed_leg._cashflows) - self.calculate_npv(self._cashflows)
 
     def calculate_convexity(self, shift:dict=None) -> float:
         """
@@ -288,8 +290,8 @@ class FixedLeg(FixedIncomeProduct):
         shifted_neg_curve = self._discounting_c.deep_copy()
         shifted_neg_curve.shift_curve(neg_shift, self._interpol)
         shift_leg_neg = FixedLeg(self._rate_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_neg_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
-        return sum((shift_leg_pos.calculate_npv() + shift_leg_neg.calculate_npv() - 2 * self.calculate_npv()) /
-            ((shift[t]/100 ** 2) * self.calculate_npv()) for t in self._paiments_schedule)
+        return sum((shift_leg_pos.calculate_npv(shift_leg_pos._cashflows) + shift_leg_neg.calculate_npv(shift_leg_neg._cashflows) - 2 * self.calculate_npv(self._cashflows)) /
+            ((shift[t]/100 ** 2) * self.calculate_npv(self._cashflows)) for t in self._paiments_schedule)
     
     def calculate_pv01(self) -> float:
         """
@@ -382,11 +384,11 @@ class FloatLeg(FixedIncomeProduct):
         self.build_cashflows_npv()
         pass
     
-    def calculate_npv(self) -> float:
+    def calculate_npv(self,cashflows) -> float:
         """
         Calculate the NPV of the float leg.
         """
-        return super().calculate_npv()
+        return super().calculate_npv(cashflows)
     
     def calculate_duration(self) -> float:
         """
@@ -416,8 +418,8 @@ class FloatLeg(FixedIncomeProduct):
         shifted_discounting_curve.shift_curve(shift_discounting, self._interpol)
 
         shift_fixed_leg = FloatLeg(shifted_fw_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_discounting_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
-        shift_fixed_leg.calculate_npv()
-        return shift_fixed_leg.calculate_npv() - self.calculate_npv()
+        shift_fixed_leg.calculate_npv(self._cashflows)
+        return shift_fixed_leg.calculate_npv(shift_fixed_leg._cashflows) - self.calculate_npv(self._cashflows)
 
     def calculate_convexity(self, shift_fw:dict=None, shift_discounting:dict=None) -> float:
         """
@@ -440,10 +442,10 @@ class FloatLeg(FixedIncomeProduct):
             shifted_discounting_curve = self._discounting_c.deep_copy()
             shifted_discounting_curve.shift_curve(shift_ds, self._interpol)
             shift_leg = FloatLeg(shifted_fw_curve, self._start_date, self._end_date, self._paiement_freq, self._currency, self._day_count, self._rolling_conv, shifted_discounting_curve, self._notional, self._spread, self._format, self._interpol, self._exchange_notional)
-            return shift_leg.calculate_npv()
+            return shift_leg.calculate_npv(self._cashflows)
 
         #Initial NPV:
-        npv_0 = self.calculate_npv()
+        npv_0 = self.calculate_npv(self._cashflows)
 
         #Shift in the same direction of both curves:
         npv_pp = get_npv(shift_fw, shift_discounting)
@@ -490,7 +492,7 @@ class FloatLeg(FixedIncomeProduct):
                 npv = self._notional * (dict[date]+self._spread)/pourcentage * (date-self._paiments_schedule[i-1])
                 pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
                 dict_result[date] = {"NPV": npv, "PV01": pv01}
-            else:
+            else: 
                 if self._exchange_notional == True:
                     npv = self._notional * (dict[date]+self._spread)/pourcentage * (date-self._paiments_schedule[i-1]) + self._notional
                     pv01 = self._notional * 1/10000 * (date-self._paiments_schedule[i-1])
@@ -540,17 +542,16 @@ class FloatLeg(FixedIncomeProduct):
         df_cap["d2"] = df_cap["d1"]-df_cap["Actu"]
         df_cap["value"] = self._rates_c["Forward_rate"]/100*norm.cdf(df_cap["d1"])-cap_strike*norm.cdf(df_cap["d2"])   
         self._cap_rate_dict = dict(zip(self._rates_c["Year_fraction"],  df_cap["value"]))
-        print(self._cap_rate_dict)
         self.build_cashflows(self._cap_rate_dict,1, self._cashflows_cap_r)
         self.build_cashflow_cap_npv()
-        return df_cap["value"]
+        pass
 
     def build_cashflow_cap_npv(self):
         """
         Apply discount factors to NPV and PV01 in a cashflow dictionary.
         
         :return: New dictionary with discounted "NPV" and "PV01".
-        """
+        """  
         discounted_cashflows = {
             t: {
                 "NPV": cf["NPV"] * self._discount_dict.get(t, 1),
@@ -560,25 +561,44 @@ class FloatLeg(FixedIncomeProduct):
         }
         self._cashflows_cap = discounted_cashflows
         pass
- 
-"""
-1: On va utiliser cette classe abstraite pour tout les produits composés de ZC:
-- Float et Fix leg, car ce seront des bases pour construire le reste, il faut un input échange de notionnel (yes/no)
-    - Fixed bond(c'est une leg fix avec de l'échange de notionnel à la fin)
-    - FRNs (pareil que fixed bond mais en float)
-- Caps / floors
-- Options de call / put
 
-2: Classe portfolio fixed income qui permettrat de construire les produits ci-dessus:
-- Fix to Float swap (mono CCY)
-- Fix to fix swap (XCCY)
-- float to float swap (XCCY)
-- FRN + cap (ou / +) floor
-- Callable / puttable
-- pricing d'oblig au marché (égalisation d'une npv fix sur un float leg)
--> On aura besoin de mettre les legs / produits en 1: vendeur ou acheteur et de build pas mal de fonction
-    de valorisation / risque
-"""
+    def floor_value(self, floor_strike:float,sigma:float) -> float:
+        """
+        Calculate the cap value of the float leg.
+
+        Input:
+        - cap (float): cap value
+        - sigma (float): volatility of the forward rate
+
+        """
+        df_floor= pd.DataFrame()
+        df_floor["Log"] = self._rates_c["Forward_rate"].apply(lambda x: np.log((x/100)/floor_strike))
+        df_floor["vol"] = (0.5*sigma**2)*self._rates_c["Year_fraction"]
+        df_floor["Actu"] = sigma*np.sqrt(self._rates_c["Year_fraction"])
+        df_floor["d1"] = (df_floor["Log"]+df_floor["vol"])/df_floor["Actu"]
+        df_floor["d2"] = df_floor["d1"]-df_floor["Actu"]
+        df_floor["value"] = floor_strike*norm.cdf(-1*df_floor["d2"]) - self._rates_c["Forward_rate"]/100*norm.cdf(-1*df_floor["d1"])   
+        self._floor_rate_dict = dict(zip(self._rates_c["Year_fraction"],  df_floor["value"]))
+        self.build_cashflows(self._floor_rate_dict,1, self._cashflows_floor_r)
+        self.build_cashflow_floor_npv()
+        pass
+
+    def build_cashflow_floor_npv(self):
+        """
+        Apply discount factors to NPV and PV01 in a cashflow dictionary.
+        
+        :return: New dictionary with discounted "NPV" and "PV01".
+        """  
+        discounted_cashflows = {
+            t: {
+                "NPV": cf["NPV"] * self._discount_dict.get(t, 1),
+                "PV01": cf["PV01"] * self._discount_dict.get(t, 1)
+            }
+            for t, cf in self._cashflows_floor_r.items()
+        }
+        self._cashflows_floor = discounted_cashflows
+        pass
+
 
 class Swap(FixedIncomeProduct):
     """
@@ -607,7 +627,7 @@ class Swap(FixedIncomeProduct):
         Calculate the fixed rate of the swap and initialize the FixedLeg.
         """
         # Calculer la NPV et PV01 de la jambe flottante
-        float_npv = self.float_leg.calculate_npv()
+        float_npv = self.float_leg.calculate_npv(self.float_leg._cashflows)
         float_pv01 = self.float_leg.calculate_pv01()
 
         # Calculer le taux fixe
@@ -634,6 +654,23 @@ class Swap(FixedIncomeProduct):
         )
 
         return fixed_rate
+    
+    def calculate_collar(self, cap_strike:float, floor_strike:float, sigma:float) -> float:
+        """
+        Calculate the collar value of the swap.
+
+        Input:
+        - cap (float): cap value
+        - floor (float): floor value
+        - sigma (float): volatility of the forward rate
+        """
+        self.float_leg.cap_value(cap_strike, sigma)
+        self.float_leg.floor_value(floor_strike, sigma)
+
+        # Calculate the collar value
+        collar_value = self.float_leg.calculate_npv(self.float_leg._cashflows_cap) - self.float_leg.calculate_npv(self.float_leg._cashflows_floor)
+        
+        return collar_value
     
     def calculate_npv(self) -> float:
         """
