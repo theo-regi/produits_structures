@@ -92,7 +92,7 @@ class TestFixedLeg(unittest.TestCase):
         """Test NPV calculation using a flat curve and different discount curve, nominal = 100"""
         target = 111.3299
         print(self.fixed_leg._rates_c)
-        self.assertAlmostEqual(self.fixed_leg.calculate_npv(), target, places=3)
+        self.assertAlmostEqual(self.fixed_leg.calculate_npv(self.fixed_leg._cashflows), target, places=3)
 
     def test_calculate_duration(self):
         """Test Duration calculation"""
@@ -130,7 +130,7 @@ class TestFloatLeg(unittest.TestCase):
     def test_npv(self):
         """Test NPV calculation using a flat curve and different discount curve, nominal = 100"""
         target = 11.90599
-        self.assertAlmostEqual(self.float_leg.calculate_npv(), target, places=3)
+        self.assertAlmostEqual(self.float_leg.calculate_npv(self.float_leg._cashflows), target, places=3)
 
     def test_calculate_duration(self):
         """Test Duration calculation"""
@@ -157,11 +157,21 @@ class TestFloatLeg(unittest.TestCase):
         target_ytm = 4.880054
         self.assertAlmostEqual(self.float_leg.calculate_yield(11), target_ytm, places=4)
 
-    def test_cap_value(self):
-        """Test Cap Value calculation"""
-        target_cap_value = 0.016786
-        result = self.float_leg.cap_value(0.025,0.06)
-        self.assertAlmostEqual(result.sum(), target_cap_value, places=6)
+    def test_cap_npv(self):
+        """Test Cap NPV calculation"""
+        target_cap_npv = 1.504774
+        self.float_leg.cap_value(0.025,0.06)
+        dict_npv = self.float_leg._cashflows_cap
+        result = self.float_leg.calculate_npv(dict_npv)
+        self.assertAlmostEqual(result, target_cap_npv, places=6)
+
+    def test_floor_npv(self):
+        """Test Cap NPV calculation"""
+        target_floor_npv = 1.270764
+        self.float_leg.floor_value(0.025,0.06)
+        dict_npv = self.float_leg._cashflows_floor
+        result = self.float_leg.calculate_npv(dict_npv)
+        self.assertAlmostEqual(result, target_floor_npv, places=6)
 
 class TestSwap(unittest.TestCase):
     def setUp(self):
@@ -179,6 +189,12 @@ class TestSwap(unittest.TestCase):
         print(self.swap.fixed_leg._rates_c)
         print(self.swap.float_leg._rates_c)
         self.assertAlmostEqual(fixed_leg_rate, target_fixed_rate, places=6)
+
+    def test_collar(self):
+        """Test Collar calculation"""
+        target_collar = -0.156183
+        result= self.swap.calculate_collar(0.035,0.02,0.06)
+        self.assertAlmostEqual(result, target_collar, places=6)
 
 class TestVanillaOption(unittest.TestCase):
     def setUp(self):
