@@ -59,7 +59,7 @@ class OptionPricer:
             self._model = dict_models[self._model](self._option, self._sigma)
             price = self._model.price(self._spot)
             self.payoff = price * np.exp(self._rate * self._option.T) * self._notional
-            print(self.payoff)
+            #print(self.payoff)
             return price
         
     @property

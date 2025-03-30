@@ -85,6 +85,11 @@ IMPLIED_VOL_METHODS = {     #Used to directly map to the supported properties
 #Initial guess for the SVI parameters (a,b,p,m,sigma)
 INITIAL_SVI = [0.1, 0.1, 0, 0, 0.2]
 
+OPTIONS_SOLVER_SVI = {
+        'ftol': 1e-12,       # tolerance for convergence
+        'maxiter': 10000,    # iteration limit
+        'disp': False         # optional: shows progress in console
+    }
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT
 class OptionType(enum.Enum):

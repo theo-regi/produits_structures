@@ -281,6 +281,5 @@ class TestSVIParamsFinder(unittest.TestCase):
         self.assertTrue(result[0]+result[1]*result[4]*np.sqrt(1-result[2]**2)>=0)
         
 
-
 if __name__ == "__main__":
     unittest.main()

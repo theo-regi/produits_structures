@@ -1,4 +1,4 @@
-from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI
+from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI, OPTIONS_SOLVER_SVI
 
 from datetime import datetime as dt
 from datetime import timedelta
@@ -334,7 +334,7 @@ class Rates_curve:
         """
         product_year_fraction = shift.keys()
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
-        print(type(self.curve_rate_product))
+        #print(type(self.curve_rate_product))
         self.__data_rate['Rate']+=self.__data_rate['Year_fraction'].map(shift)
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
         pass
@@ -523,8 +523,7 @@ class SVIParamsFinder:
         counstraits=({'type': 'ineq','fun':param_constraint},)
         #bounds for (a,b,p,m,sigma)
         bounds = ((None,None), (0,None), (-0.999999, 0.999999), (None,None), self._bounds)
-
-        result = minimize(objective, x0=self._initial_svi, bounds=bounds, method=self._svi_method, constraints=counstraits, options={'disp':True})
+        result = minimize(objective, x0=self._initial_svi, bounds=bounds, method=self._svi_method, constraints=counstraits, options=OPTIONS_SOLVER_SVI)
         if result.success:
             return result.x
         else:
