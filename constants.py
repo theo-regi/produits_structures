@@ -15,8 +15,11 @@ CONVENTION_DAY_COUNT = '30/360' #Supported conventions: '30/360', 'ACT/360', 'AC
 #Default convention for rolling on closed days, will be used if not provided by the user.
 ROLLING_CONVENTION = 'Modified Following' #Supported conventions: 'Following', 'Modified Following', 'Preceding', 'Modified Preceding'
 
-#Solver methode for optimization, will be used if not provided by the user.
-SOLVER_METHOD = 'L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', 'Powell', 'TNC'
+#Solver method for optimization, will be used for basic solvers (Yield/Implied vol/rates) if not provided by the user.
+SOLVER_METHOD = 'L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', 'Powell', 'TNC', but you will prefer L-BFGS-B for those basic problems
+
+#Solver method for the SVI parameters optimization, will be used in the ImpledVolatilityFinder class in the SVI_params function:
+SVI_SOLVER_METHOD = 'SLSQP' #Prefered method will be SLSQP because of all the constraints and bounds we have to set for the SVI parameters optimization.
 
 #Initial Parameters Nielson-Siegel:
 INITIAL_NS = [1,1,1,1]
@@ -78,6 +81,9 @@ IMPLIED_VOL_METHODS = {     #Used to directly map to the supported properties
     "Optimization": "_optimization",
     "Newton-Raphson": "_newton_raphson"
 }
+
+#Initial guess for the SVI parameters (a,b,p,m,sigma)
+INITIAL_SVI = [0.1, 0.1, 0, 0, 0.2]
 
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT

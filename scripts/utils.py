@@ -1,10 +1,11 @@
-from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD
+from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI
 
 from datetime import datetime as dt
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 import holidays
 import pandas as pd
+import numpy as np
 from scipy.optimize import fsolve, minimize
 
 from functions import optimize_nelson_siegel,nelson_siegel
@@ -354,6 +355,17 @@ class ImpliedVolatilityFinder:
     """
     Class to find implied volatility on markets via BSM Model and different methods.
     Supported methods: Dichotomy, Optimization, Newton-Raphson.
+
+    Inputs:
+    - model: Model used for options pricing (we advise BSM for fast executions).
+    - option: Option object to be used for pricing.
+    - price: Market Price of the option.
+    - method: Method to be used for finding implied volatility (Dichotomy, Optimization, Newton-Raphson).
+    - tolerance: Tolerance for the solver.
+    - nb_iter: Max iterations for the solver.
+    - bounds: Bounds for the solver (volatility).
+    - starting_point: Starting point for the solver (volatility).
+    - spot: Spot price of the underlying asset.
     """
     def __init__(self, model, option, price:float, method:str, tolerance:float, nb_iter:float, bounds:tuple, starting_point:float, spot:float) -> None:
         self._model=model
@@ -373,7 +385,7 @@ class ImpliedVolatilityFinder:
             return getattr(self, method)
         except KeyError:
             raise ValueError(f"Method {self._method} is not supported. Choose: {list(IMPLIED_VOL_METHODS.keys())}")
-
+    
     @property
     def _dichotomy(self) -> float:
         """
@@ -444,6 +456,86 @@ class ImpliedVolatilityFinder:
         print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {self._nb_iter}, Starting Point: {self._starting_point}")
         return None
         
+
+class SVIParamsFinder:
+    """
+    Class to find SVI parameters on markets via SVI Model.
+
+    Input:
+    - model: Model used for options pricing (we advise BSM for fast executions).
+    - vector_options: List of options to be used for pricing.
+    - vector_prices: List of market prices of the options.
+    - method_implied_vol: Method to be used for finding implied volatility (Dichotomy, Optimization, Newton-Raphson).
+    - vector_spots: List of spot prices of the underlying assets.
+    - tolerance: Tolerance for the solver.
+    - nb_iter: Max iterations for the solver.
+    - bounds: Bounds for the solver (volatility).
+    - starting_point: Starting point for the solver (volatility).
+    """
+    def __init__(self, model, vector_options:list, vector_prices:list, method_implied_vol:str, spot:float, tolerance:float, nb_iter:float, bounds:tuple, starting_point:float, initial_svi:list=INITIAL_SVI, svi_method:str=SVI_SOLVER_METHOD) -> None:
+        self._model=model
+        self._options = vector_options
+        self._prices = vector_prices
+        self._market_prices = np.array(self._prices)
+        self.T = self._options[0].T
+        self._spot=spot
+
+        self._method = method_implied_vol
+        self._tolerance = tolerance
+        self._nb_iter = nb_iter
+        self._bounds = bounds
+        self._starting_point = starting_point
+        self._initial_svi = initial_svi
+        self._svi_method=svi_method
+        
+        self.vector_implied_vol = self.__calculate_implied_vols()
+    
+    def __calculate_implied_vols(self) -> list:
+        try:
+            vols = []
+            for i in range(len(self._options)):
+                finder = ImpliedVolatilityFinder(self._model, self._options[i], self._prices[i], self._method, self._tolerance, self._nb_iter, self._bounds, self._starting_point, self._spot)
+                vols.append(finder.find_implied_volatility())
+            return vols
+        except KeyError:
+            raise ValueError("Error while calculating implied volatilities !")
+    
+    def find_svi_parameters(self):
+        """
+        Find SVI parameters for the given options matrice.
+        """
+        fct_vi=lambda a,b,p,m,s,k: a + b * (p * (k - m) + np.sqrt((k - m)**2 + s**2))
+        fct_valo=lambda option, svi_vol: self._model(option, svi_vol)
+
+        def objective(params)->float:
+            a,b,p,m,s = params
+            k_vec = np.array([np.log(option._strike/self._spot) for option in self._options])
+            w_vec = fct_vi(a,b,p,m,s,k_vec)
+            svi_vols = np.sqrt(w_vec/self.T)
+            prices = [fct_valo(option, svi_vol).price(self._spot) for option, svi_vol in zip(self._options, svi_vols)]
+            
+            return np.sum(((prices - self._market_prices))**2)
+
+        def param_constraint(params)-> float:
+            a,b,p,m,s = params
+            return a + b*s*np.sqrt(1+p**2)
+
+        counstraits=({'type': 'ineq','fun':param_constraint},)
+        #bounds for (a,b,p,m,sigma)
+        bounds = ((None,None), (0,None), (-0.999999, 0.999999), (None,None), self._bounds)
+
+        result = minimize(objective, x0=self._initial_svi, bounds=bounds, method=self._svi_method, constraints=counstraits, options={'disp':True})
+        if result.success:
+            return result.x
+        else:
+            if self._initial_svi[4] != 1.0:
+                self._initial_svi[4] = 1.0
+                return self.find_svi_parameters()
+            else:
+                print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {self._nb_iter}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
+                return None
+
+
 #Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
 
 #Price diffision models: Mouvement Brownien, (Jump Diffusion, Diffusion Stochastique what are those ?) + besoin de prise en compte des divs

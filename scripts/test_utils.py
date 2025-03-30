@@ -248,5 +248,39 @@ class TestImpliedVolatilityFinder(unittest.TestCase):
         result = self.pricer.implied_vol(method='Newton-Raphson')
         self.assertAlmostEqual(result, 0.42363, places=2)
 
+class TestSVIParamsFinder(unittest.TestCase):
+    def setUp(self):
+        """Set up test cases with different parameters."""
+        start, end = "12/03/2025", "16/05/2025"
+        type=OptionType.CALL
+        model="Black-Scholes-Merton"
+        spot=216.98
+        self.strikes = [100,110,115,130,135,140,145,150,155,160,165,170,175,180,185,190,195,200,205,210,215,220,225,230,235,240,245,250,255,260,265,270,275,280,285,290,295,300,305,310,315,320]
+        self.prices=[123.5,107.35,102.7,91.64,114.19,78.58,104.42,68.2,71.8,57.77,58.27,49.86,47.13,40.65,34.49,30.7,27.65,23.55,20,16.35,13.5,10.85,8.35,6.21,4.6,3.3,2.34,1.63,1.13,0.81,0.58,0.43,0.32,0.23,0.18,0.15,0.11,0.11,0.1,0.08,0.04,0.05]
+
+        self.pricer = OptionPricer(
+            start_date=start,
+            end_date=end,
+            type=type,
+            model=model,
+            spot=spot,
+            div_rate=0,
+            currency="EUR",
+            rate=0,
+            notional=1)
+
+    def test_svi_params(self):
+        import numpy as np
+        result = self.pricer.svi_params(self.strikes, self.prices)
+        print(result)
+        self.assertEqual(len(result), 5)
+        self.assertEqual(all([np.isfinite(x) for x in result]), True)
+        self.assertTrue(result[1] > 0)  # Check if 'b' is positive
+        self.assertTrue(abs(result[2]) < 1)  # Check if 'p' is <1
+        self.assertTrue(result[4] > 0) # Check if 'sigma' is positive
+        self.assertTrue(result[0]+result[1]*result[4]*np.sqrt(1-result[2]**2)>=0)
+        
+
+
 if __name__ == "__main__":
     unittest.main()
