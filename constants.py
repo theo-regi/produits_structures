@@ -18,6 +18,9 @@ ROLLING_CONVENTION = 'Modified Following' #Supported conventions: 'Following', '
 #Solver methode for optimization, will be used if not provided by the user.
 SOLVER_METHOD = 'L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', 'Powell', 'TNC'
 
+#Initial Parameters Nielson-Siegel:
+INITIAL_NS = [1,1,1,1]
+
 #Tolerance for the solver
 TOLERANCE = 1e-8
 
@@ -68,6 +71,13 @@ BASE_SIGMA = 0.05
 
 #______________________________IMPLIED VOLATILITY CALCULATION CONSTANTS:_______________________________
 BASE_METHOD_VOL = 'Dichotomy' #Method used for implied volatility calculation (for utils.volatility): Dichotomy, Optimization, Newton-Raphson
+
+#Supported methods: 'Dichotomy', 'Optimization', 'Newton-Raphson'
+IMPLIED_VOL_METHODS = {     #Used to directly map to the supported properties
+    "Dichotomy": "_dichotomy",
+    "Optimization": "_optimization",
+    "Newton-Raphson": "_newton_raphson"
+}
 
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT

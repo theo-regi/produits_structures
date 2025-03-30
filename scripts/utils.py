@@ -1,11 +1,11 @@
-from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE
+from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD
+
 from datetime import datetime as dt
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
 import holidays
 import pandas as pd
-import numpy as np
-from scipy.optimize import fsolve
+from scipy.optimize import fsolve, minimize
 
 from functions import optimize_nelson_siegel,nelson_siegel
 #-------------------------------------------------------------------------------------------------------
@@ -211,11 +211,10 @@ class Rates_curve:
 
     Renvoie la courbe de taux pour un produit donné.
     """
-    def __init__(self, path_rate:str, flat_rate:float= None):
+    def __init__(self, path_rate:str, flat_rate:float= None, method:str=None):
         self.__path_rate = path_rate
         self.__flat_rate = flat_rate
-
-        self.__flat_rate = flat_rate
+        self.__method = method
         self.__data_rate = pd.read_csv(path_rate,sep=";") #Only CSV reader supported for now. No link to external sources developped (not required + not pratical for student's dev).
         self.curve_rate_product = None
         pass
@@ -268,7 +267,7 @@ class Rates_curve:
         self.__data_rate["Rate"] = self.__data_rate["Rate"].interpolate(method='quadratic')
         return self.__data_rate
 
-    def Nelson_Siegel_interpol(self,convention,product_year_fraction: list) -> pd.DataFrame:
+    def Nelson_Siegel_interpol(self,convention,product_year_fraction:list) -> pd.DataFrame:
         """
         Fonction pour interpoler les taux de la courbe de taux -> méthode Nelson-Siegel.
         """
@@ -369,17 +368,14 @@ class ImpliedVolatilityFinder:
         self._starting_point = starting_point
 
     def find_implied_volatility(self):
-        if self._method == "Dichotomy":
-            return self.__dichotomy
-        elif self._method == "Optimization":
-            return self.__optimization
-        elif self._method == "Newton-Raphson":
-            return self.__newton_raphson
-        else:
-            raise ValueError(f"Method {self._method} is not supported. Choose: Dichotomy, Optimization, Newton-Raphson")
+        try:
+            method = IMPLIED_VOL_METHODS[self._method]
+            return getattr(self, method)
+        except KeyError:
+            raise ValueError(f"Method {self._method} is not supported. Choose: {list(IMPLIED_VOL_METHODS.keys())}")
 
     @property
-    def __dichotomy(self) -> float:
+    def _dichotomy(self) -> float:
         """
         Find the implied volatility using the dichotomy method.
         """
@@ -398,19 +394,56 @@ class ImpliedVolatilityFinder:
         return None
 
     @property
-    def __optimization(self) -> float:
+    def _optimization(self) -> float:
         """
         Find the implied volatility using optimization method.
         """
-        pass
+        fct_vol=lambda volatility:self._model(self._option, volatility)
+
+        #Objective function:
+        def objective(vol) -> float:
+            price = fct_vol(vol[0]).price(self._spot)
+            return (self._price - price)**2
+        
+        result = minimize(objective, self._starting_point, bounds=[self._bounds], method=SOLVER_METHOD, tol=self._tolerance, options={'maxfun': self._nb_iter})
+        if result.success and result["fun"]<self._tolerance and result.x[0]!=self._starting_point:
+            return result.x[0]
+        else:
+            if self._starting_point != 1.0:
+                self._starting_point=1.0
+                return self.__optimization
+            else:
+                print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {self._nb_iter}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
+                return None
     
     @property
-    def __newton_raphson(self) -> float:
+    def _newton_raphson(self) -> float:
         """
         Find the implied volatility using Newton-Raphson method.
         """
-        pass
+        loc_vol = self._starting_point
+        fct_vol=lambda volatility:self._model(self._option, volatility)
 
+        for _ in range(self._nb_iter):
+            valo=fct_vol(loc_vol)
+            price = valo.price(self._spot)
+            vega = valo.vega(self._spot)
+
+            if vega == 0:
+                if self._starting_point<1.0:
+                    self._starting_point+=0.1
+                    return self._newton_raphson
+                print("Zero Vega, cannot find implied volatility.")
+                return None
+
+            diff = price - self._price
+            if abs(diff) < self._tolerance:
+                return loc_vol
+            loc_vol -= diff / vega
+
+        print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {self._nb_iter}, Starting Point: {self._starting_point}")
+        return None
+        
 #Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
 
 #Price diffision models: Mouvement Brownien, (Jump Diffusion, Diffusion Stochastique what are those ?) + besoin de prise en compte des divs

@@ -3,7 +3,7 @@ from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURREN
 
 import numpy as np
 from abc import ABC, abstractmethod
-from utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
+from utils import PaymentScheduleHandler, Rates_curve
 import utils
 import pandas as pd
 from scipy.stats import norm

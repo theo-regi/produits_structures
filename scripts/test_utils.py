@@ -240,5 +240,13 @@ class TestImpliedVolatilityFinder(unittest.TestCase):
         result = self.pricer.implied_vol(method="Dichotomy")
         self.assertAlmostEqual(result, 0.42363, places=2)
 
+    def test_implied_volatility_optimization(self):
+        result = self.pricer.implied_vol(method='Optimization')
+        self.assertAlmostEqual(result, 0.42363, places=2)
+
+    def test_implied_volatility_newton_raphson(self):
+        result = self.pricer.implied_vol(method='Newton-Raphson')
+        self.assertAlmostEqual(result, 0.42363, places=2)
+
 if __name__ == "__main__":
     unittest.main()
