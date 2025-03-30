@@ -456,7 +456,7 @@ class ImpliedVolatilityFinder:
         print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {self._nb_iter}, Starting Point: {self._starting_point}")
         return None
         
-
+#Classe pour trouver la volatilité paramétrique (vol fonction du strike)
 class SVIParamsFinder:
     """
     Class to find SVI parameters on markets via SVI Model.

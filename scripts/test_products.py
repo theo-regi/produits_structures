@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption
+from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption, OptionMarket
 from utils import Rates_curve
 from constants import OptionType
 
@@ -219,6 +219,20 @@ class TestVanillaOption(unittest.TestCase):
         self.vanilla_option = VanillaOption("28/03/2025", "28/03/2026", OptionType.PUT, strike=100, notional=1)
         """Test NPV calculation using a 0.05 Interest rate"""
         self.assertAlmostEqual(self.vanilla_option.npv(self.spot), 0, places=4)
+
+class TestOptionMarket(unittest.TestCase):
+    def setUp(self):
+        """Set up the Option market object helper"""
+        self.option_market = OptionMarket("data/options.csv")
+
+    def test_split_price_dates(self):
+        dfs = self.option_market._dict_df
+        self.assertEqual(len(dfs.keys()), 3)
+
+    def test_build_options_matrix(self):
+        matrices = self.option_market._options_matrices
+        print(matrices[list(matrices.keys())[0]])
+        self.assertEqual(len(matrices.keys()), 3)
 
 if __name__ == "__main__":
     unittest.main()

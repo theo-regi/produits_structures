@@ -7,6 +7,7 @@ from utils import PaymentScheduleHandler, Rates_curve
 import utils
 import pandas as pd
 from scipy.stats import norm
+from collections import defaultdict
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes de produits----------------------------
@@ -849,3 +850,76 @@ class Share():
         """
         return self._schedule_dividends
 
+
+
+
+
+
+#Classe gestion du marché des options: Ne pas bouger de fichier, obligé d'être ici pour éviter les appels en ronds.
+class OptionMarket:
+    """
+    Class to handle the dataset of options, select appropriate ones for volatility models/parameters calibration.
+
+    Input:
+    - Filename / path for the options CSV dataset
+    """
+    def __init__(self, filename:str) -> None:
+        self._filename = filename
+        self._df = pd.read_csv(self._filename, sep=";")
+        self._dict_df = self._split_price_dates()
+        self._options_matrices = self._build_options_matrix()
+        pass
+
+    def _split_price_dates(self):
+        """
+        Function to split the dataset in DFs for each pricing dates found.
+        """
+        dfs = {}
+        #Get the list of pricing dates
+        pricing_dates = self._df["price_date"].unique()
+        for date in pricing_dates:
+            #Get the dataframe for each pricing date
+            df_date = self._df[self._df["price_date"] == date].copy()
+            #Get the list of columns to keep
+            columns_to_keep = ["price_date", "expiration", "strike", "last", "implied_volatility", "type"]
+            #Keep only the columns to keep
+            df_date = df_date[columns_to_keep]
+            #Add the dataframe to the dictionary
+            dfs[date] = df_date
+        return dfs
+
+    def _build_options_matrix(self):
+        """
+        Function to build the options matrix for each pricing date.
+        """
+        matrices = {}
+        for date in self._dict_df.keys():
+            df = self._dict_df[date]
+            options_matrix = defaultdict(lambda: {'call': [], 'put': []})    
+            
+            for _, row in df.iterrows():
+                option_type = row['type'].lower()
+                if option_type == "call":
+                    t = 1
+                elif option_type == "put":
+                    t = -1
+                else:
+                    print(f"Invalid Option type: {option_type}")
+
+                option = VanillaOption(row['price_date'], row['expiration'], OptionType(t), row['strike'], price=row['last'])
+                options_matrix[row['expiration']][option_type].append(option)
+            
+            matrices[date]=options_matrix
+        return matrices
+
+    def get_options_for_moneyness(self, spot:float, price_date:str=None, maturity:str=None, moneyness_bounds:tuple=None):
+        """
+        Function to get options in a certains moneyness for a specified pricing date, and specified maturity.
+
+        Input:
+        - spot (float, non optional): spot price of the underlying asset
+        - price_date (string, optional): price date of the options
+        - maturity (string, optional): maturity date of the options
+        - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options
+        """
+        pass

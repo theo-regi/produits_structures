@@ -9,13 +9,11 @@ Regarder également ce que l'on veut faire sur l'EQD pour un peu avoir de la vis
 MOVE INDEX = vol sur les marchés de taux
 
 To DO: Pas se fier aux numéros pour l'ordre
--Pour théo: faire un clean des constantes, garder au niveau de la classe qui appelle et faire redescendre dans le système -> remplacer par None if not given car constant given par la chaine
-
 1: Récupérer les données taux / valider celles que l'on veut utiliser (voir classe FRED)
 
 2: Faire les modèles diffusion taux (Vasicek MC...) - prix (vol stocastique) / path dependent
 
-3: Faire les modèles de volatilité
+3: Faire les modèles de volatilité locales et sto
 
 4: Faire les classes VanillaOptions + abstract EQD
 
@@ -29,3 +27,5 @@ To DO: Pas se fier aux numéros pour l'ordre
 
 8: On peut imaginer une classe Shares qui sera liée aux EQD, par exemple prend le spot du marché (plutot qu'un spot de 100), et construit un échéancier de divs.
 -> Permet de pricer les EQD directement dans les conditions de marchés, et choquer les paths MC avec les divs / les inclures dans les modèles fermés.
+
+9: travailler sur la calibration des modèles, sur des strikes restreints 70-130% du spot / etc
