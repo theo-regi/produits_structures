@@ -121,11 +121,11 @@ class OptionPricer:
         else:
             raise ValueError("Model not supported for implied volatility calculation. Please choose Black-Scholes-Merton.")
         
-    def svi_params(self, vector_strikes:list, vector_prices:list, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> tuple:
+    def svi_params(self, vector_types:list, vector_strikes:list, vector_prices:list, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> tuple:
         if self._model == "Black-Scholes-Merton":
             options=[]
             for i in range(len(vector_strikes)):
-                options.append(VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=vector_strikes[i], notional=self._notional, currency=self._currency, div_rate=self._div_rate))
+                options.append(VanillaOption(start_date=self._start_date, end_date=self._end_date, type=vector_types[i], strike=vector_strikes[i], notional=self._notional, currency=self._currency, div_rate=self._div_rate))
             self._model = dict_models[self._model]
             svi_params_finder = SVIParamsFinder(model=self._model, vector_options=options, vector_prices=vector_prices, method_implied_vol=method, spot=self._spot, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point)
             return svi_params_finder.find_svi_parameters()

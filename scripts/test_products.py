@@ -223,7 +223,7 @@ class TestVanillaOption(unittest.TestCase):
 class TestOptionMarket(unittest.TestCase):
     def setUp(self):
         """Set up the Option market object helper"""
-        self.option_market = OptionMarket("data/options.csv")
+        self.option_market = OptionMarket("data/options.csv", "data/underlying_prices.csv")
 
     def test_split_price_dates(self):
         dfs = self.option_market._dict_df
@@ -233,6 +233,28 @@ class TestOptionMarket(unittest.TestCase):
         matrices = self.option_market._options_matrices
         print(matrices[list(matrices.keys())[0]])
         self.assertEqual(len(matrices.keys()), 3)
+
+    def test_get_options_for_moneyness(self):
+        """Test the get_options_for_moneyness method"""
+        spot = 209.68
+        OTM_v = True
+        p_date = "13/03/2025"
+        maturity = "16/05/2025" #Checking first pricing date, first maturity
+        options = self.option_market.get_options_for_moneyness(p_date, maturity, (0.7,1.3), OTM_v)
+        self.assertIsInstance(options, list)
+               
+        moneyness_l_c, moneyness_l_p = [], []
+        for option in options:
+            if option._type == OptionType.CALL:
+                moneyness_l_c.append(np.log(option._strike/spot))
+            elif option._type == OptionType.PUT:
+                moneyness_l_p.append(np.log(option._strike/spot))
+        moneyness_l = moneyness_l_p + moneyness_l_c
+
+        self.assertTrue(all(np.log(0.7) <= m <= np.log(1.3) for m in moneyness_l))
+        if OTM_v == True:
+            self.assertTrue(all(m >= 0 for m in moneyness_l_c))
+            self.assertTrue(all(m <= 0 for m in moneyness_l_p))
 
 if __name__ == "__main__":
     unittest.main()

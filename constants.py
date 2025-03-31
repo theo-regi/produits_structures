@@ -83,13 +83,27 @@ IMPLIED_VOL_METHODS = {     #Used to directly map to the supported properties
 }
 
 #Initial guess for the SVI parameters (a,b,p,m,sigma)
-INITIAL_SVI = [0.1, 0.1, 0, 0, 0.2]
+INITIAL_SVI = [0.1, 0.1, 0.1, 0.1, 0.1]
 
+#Solver parameters
 OPTIONS_SOLVER_SVI = {
         'ftol': 1e-12,       # tolerance for convergence
         'maxiter': 10000,    # iteration limit
-        'disp': False         # optional: shows progress in console
+        'disp': True         # optional: shows progress in console
     }
+
+#Moneyness bounds: to take only slight OTM/ATM options.
+BOUNDS_MONEYNESS = (0.7, 1.3)   #Avoid using to much over OTM / ATM options for vol calibrations
+
+#Calibrate vol on only OTM options (recommanded because liquier).
+OTM_CALIBRATION = True #True for OTM calibration, False to take OTM and ATM options for given bounds calibration
+
+#Calibrate on volume (will use volumes over x% of the average volume)
+VOLUME_CALIBRATION = True
+
+#Threshold for volume calibration (under average):
+VOLUME_THRESHOLD = 0.7
+
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT
 class OptionType(enum.Enum):

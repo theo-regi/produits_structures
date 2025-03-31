@@ -1,5 +1,5 @@
 from constants import BASE_NOTIONAL, CONVENTION_DAY_COUNT, ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT
-from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, BASE_DIV_RATE
+from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, BASE_DIV_RATE, BOUNDS_MONEYNESS, OTM_CALIBRATION, VOLUME_CALIBRATION, VOLUME_THRESHOLD
 
 import numpy as np
 from abc import ABC, abstractmethod
@@ -794,9 +794,10 @@ class VanillaOption(EQDProduct):
     - NPV
     - Greeks: Delta / Gamma / Rho / Theta / Vega
     """
-    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, div_rate:str=BASE_DIV_RATE, price:float=None) -> None:
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, div_rate:str=BASE_DIV_RATE, price:float=None, volume:float=None) -> None:
         super().__init__(start_date, end_date, type, strike, rate, day_count, rolling_conv, notional, format_date, currency, price)
         self._div_rate=div_rate
+        self._volume=volume
         pass
 
     def npv(self, spot:float=BASE_SPOT) -> float:
@@ -850,11 +851,6 @@ class Share():
         """
         return self._schedule_dividends
 
-
-
-
-
-
 #Classe gestion du marché des options: Ne pas bouger de fichier, obligé d'être ici pour éviter les appels en ronds.
 class OptionMarket:
     """
@@ -863,10 +859,16 @@ class OptionMarket:
     Input:
     - Filename / path for the options CSV dataset
     """
-    def __init__(self, filename:str) -> None:
-        self._filename = filename
+    def __init__(self, filename_options:str, filename_uderlying:str) -> None:
+        self._filename = filename_options
+        self._filename_underlying = filename_uderlying
+        self._df_asset = pd.read_csv(self._filename_underlying, sep=';', index_col=0)
+        self._df_asset.index = pd.to_datetime(self._df_asset.index)
+
         self._df = pd.read_csv(self._filename, sep=";")
         self._dict_df = self._split_price_dates()
+
+        self._spot = None
         self._options_matrices = self._build_options_matrix()
         pass
 
@@ -881,7 +883,7 @@ class OptionMarket:
             #Get the dataframe for each pricing date
             df_date = self._df[self._df["price_date"] == date].copy()
             #Get the list of columns to keep
-            columns_to_keep = ["price_date", "expiration", "strike", "last", "implied_volatility", "type"]
+            columns_to_keep = ["price_date", "expiration", "strike", "last", "implied_volatility", "type", "volume"]
             #Keep only the columns to keep
             df_date = df_date[columns_to_keep]
             #Add the dataframe to the dictionary
@@ -906,13 +908,13 @@ class OptionMarket:
                 else:
                     print(f"Invalid Option type: {option_type}")
 
-                option = VanillaOption(row['price_date'], row['expiration'], OptionType(t), row['strike'], price=row['last'])
+                option = VanillaOption(row['price_date'], row['expiration'], OptionType(t), row['strike'], price=row['last'], volume=row['volume'])
                 options_matrix[row['expiration']][option_type].append(option)
             
             matrices[date]=options_matrix
         return matrices
 
-    def get_options_for_moneyness(self, spot:float, price_date:str=None, maturity:str=None, moneyness_bounds:tuple=None):
+    def get_options_for_moneyness(self, price_date:str, maturity:str, moneyness_bounds:tuple=BOUNDS_MONEYNESS, calibrate_on_OTM:bool=OTM_CALIBRATION, calibrate_on_volume:bool=VOLUME_CALIBRATION, volume_bounds:float=VOLUME_THRESHOLD) -> list:
         """
         Function to get options in a certains moneyness for a specified pricing date, and specified maturity.
 
@@ -920,6 +922,79 @@ class OptionMarket:
         - spot (float, non optional): spot price of the underlying asset
         - price_date (string, optional): price date of the options
         - maturity (string, optional): maturity date of the options
-        - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options
+        - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options (in % or 0.00 format)
         """
-        pass
+        #Getting the spot
+        self._spot = self._df_asset.loc[pd.to_datetime(price_date),"4. close"]
+
+        #Taking correct options
+        options_for_dates = self._options_matrices[price_date][maturity]
+        options_for_moneyness = []
+        k_moneyness = lambda strike:np.log(strike/self._spot)
+        if calibrate_on_volume == True:
+            count, volume = 0, 0
+            for option in options_for_dates['call']:
+                count+=1
+                volume+=option._volume
+            for option in options_for_dates['put']:
+                count+=1
+                volume+=option._volume
+            volume/=count
+
+            if calibrate_on_OTM == True:
+                for option in options_for_dates['call']:
+                    if k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]) and k_moneyness(option._strike) >= 0 and option._volume>volume_bounds*volume:
+                        options_for_moneyness.append(option)
+                for option in options_for_dates['put']:
+                    if k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]) and k_moneyness(option._strike) <= 0 and option._volume>volume_bounds*volume:
+                        options_for_moneyness.append(option)
+            else:
+                for option in options_for_dates['calls']:
+                    if  k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]) and option._volume>volume_bounds*volume:
+                        options_for_moneyness.append(option)
+                for option in options_for_dates['puts']:
+                    if  k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]) and option._volume>volume_bounds*volume:
+                        options_for_moneyness.append(option)
+        
+        else:
+            if calibrate_on_OTM == True:
+                for option in options_for_dates['call']:
+                    if k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]) and k_moneyness(option._strike) >= 0:
+                        options_for_moneyness.append(option)
+                for option in options_for_dates['put']:
+                    if k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]) and k_moneyness(option._strike) <= 0:
+                        options_for_moneyness.append(option)
+            else:
+                for option in options_for_dates['calls']:
+                    if  k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]):
+                        options_for_moneyness.append(option)
+                for option in options_for_dates['puts']:
+                    if  k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]):
+                        options_for_moneyness.append(option)
+        """
+        option_strike=[option._strike for option in options_for_moneyness]
+        option_price=[option._price for option in options_for_moneyness]
+        option_volume=[option._volume for option in options_for_moneyness]
+        option_type=[option._type for option in options_for_moneyness]
+        print(volume)
+        data = {
+            'type': option_type,
+            'strike': option_strike,
+            'volume': option_volume,
+            'price': option_price}
+        pd.DataFrame(data=data).to_excel("selection_options.xlsx",index=False)"""
+        return options_for_moneyness
+    
+    def get_values_for_calibration_SVI(self, price_date:str, maturity:str, moneyness_bounds:tuple=BOUNDS_MONEYNESS, calibrate_on_OTM:bool=OTM_CALIBRATION, calibrate_on_volume:bool=VOLUME_CALIBRATION, volume_bounds:float=VOLUME_THRESHOLD) -> list:
+        """
+        Function to get the values for the calibration of the SSI model.
+
+        Input:
+        - spot (float, non optional): spot price of the underlying asset
+        - price_date (string, optional): price date of the options
+        - maturity (string, optional): maturity date of the options
+        - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options (in % or 0.00 format)
+        """
+        options = self.get_options_for_moneyness(price_date, maturity, moneyness_bounds, calibrate_on_OTM, calibrate_on_volume, volume_bounds)
+        return [option._type for option in options], [option._strike for option in options], [option._price for option in options], self._spot
+

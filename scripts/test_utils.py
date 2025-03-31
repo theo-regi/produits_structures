@@ -1,7 +1,8 @@
 import unittest
-from scripts.utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
+from scripts.utils import Maturity_handler, PaymentScheduleHandler, Rates_curve, SVIParamsFinder
 from scripts.pricers import OptionPricer
 from constants import OptionType
+from products import OptionMarket
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour tester les classes unitaires-----------------------------------
@@ -280,4 +281,22 @@ class TestSVIParamsFinder(unittest.TestCase):
         self.assertTrue(result[4] > 0) # Check if 'sigma' is positive
         self.assertTrue(result[0]+result[1]*result[4]*np.sqrt(1-result[2]**2)>=0)
         
-    
+class TestOptionMarket_SSI_Connection(unittest.TestCase):
+    def setUp(self):
+        OTM_v = True
+        self.option_market = OptionMarket("data/options.csv", "data/underlying_prices.csv")
+        p_date = "13/03/2025"
+        maturity = "16/05/2025" #Checking first pricing date, first maturity
+
+        list_types, list_strikes, list_prices, spot = self.option_market.get_values_for_calibration_SVI(p_date, maturity,(0.7, 1.3) , OTM_v)
+        self.pricer = OptionPricer(p_date, maturity, model="Black-Scholes-Merton", spot=spot, div_rate=0, currency="EUR", rate=0, notional=1)
+
+        self.params = self.pricer.svi_params(list_types, list_strikes, list_prices)
+
+
+    def test_connection(self):
+        """Test the connection to the SSI server."""
+        self.assertIsInstance(list(self.params), list)
+        self.assertEqual(len(self.params), 5)
+        print(self.params)
+        pass

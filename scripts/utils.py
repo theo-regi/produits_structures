@@ -489,6 +489,8 @@ class SVIParamsFinder:
         self._svi_method=svi_method
         
         self.vector_implied_vol = self.__calculate_implied_vols()
+        print(self.vector_implied_vol)
+        print([option._type for option in self._options])
     
     def __calculate_implied_vols(self) -> list:
         try:
@@ -520,19 +522,39 @@ class SVIParamsFinder:
             a,b,p,m,s = params
             return a + b*s*np.sqrt(1+p**2)
 
+        def check_params(params):
+            a,b,p,m,s = params
+            k_vec = np.array([np.log(option._strike/self._spot) for option in self._options])
+            w_vec = fct_vi(a,b,p,m,s,k_vec)
+            print(a,b,p,m,s)
+            print(w_vec)
+            print(k_vec)
+            result = np.all(w_vec>0)
+            print(np.all(w_vec>0))
+            return result
+
+        def new_initial(bounds):
+            perturbation = np.ones(len(self._initial_svi)) * np.random.uniform(-5,5)
+            new_svi *= perturbation
+            if all(new_svi[i] < bounds[i][1] and new_svi[i] > bounds[i][0] for i in range(len(self._initial_svi))):
+                return new_svi
+            else:
+                return new_initial()
+
         counstraits=({'type': 'ineq','fun':param_constraint},)
         #bounds for (a,b,p,m,sigma)
         bounds = ((None,None), (0,None), (-0.999999, 0.999999), (None,None), self._bounds)
         result = minimize(objective, x0=self._initial_svi, bounds=bounds, method=self._svi_method, constraints=counstraits, options=OPTIONS_SOLVER_SVI)
-        if result.success:
+        count=0
+        if result.success and check_params(result.x) == True:
             return result.x
+        elif count < 100:
+            count +=1
+            self._initial_svi = new_initial()
+            return self.find_svi_parameters()
         else:
-            if self._initial_svi[4] != 1.0:
-                self._initial_svi[4] = 1.0
-                return self.find_svi_parameters()
-            else:
-                print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {self._nb_iter}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
-                return None
+            print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {count}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
+            return None
 
 
 #Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
