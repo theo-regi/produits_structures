@@ -971,18 +971,6 @@ class OptionMarket:
                 for option in options_for_dates['puts']:
                     if  k_moneyness(option._strike) >= np.log(moneyness_bounds[0]) and k_moneyness(option._strike) <= np.log(moneyness_bounds[1]):
                         options_for_moneyness.append(option)
-        """
-        option_strike=[option._strike for option in options_for_moneyness]
-        option_price=[option._price for option in options_for_moneyness]
-        option_volume=[option._volume for option in options_for_moneyness]
-        option_type=[option._type for option in options_for_moneyness]
-        print(volume)
-        data = {
-            'type': option_type,
-            'strike': option_strike,
-            'volume': option_volume,
-            'price': option_price}
-        pd.DataFrame(data=data).to_excel("selection_options.xlsx",index=False)"""
         return options_for_moneyness
     
     def get_values_for_calibration_SVI(self, price_date:str, maturity:str, moneyness_bounds:tuple=BOUNDS_MONEYNESS, calibrate_on_OTM:bool=OTM_CALIBRATION, calibrate_on_volume:bool=VOLUME_CALIBRATION, volume_bounds:float=VOLUME_THRESHOLD) -> list:

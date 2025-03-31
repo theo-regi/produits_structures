@@ -489,8 +489,6 @@ class SVIParamsFinder:
         self._svi_method=svi_method
         
         self.vector_implied_vol = self.__calculate_implied_vols()
-        print(self.vector_implied_vol)
-        print([option._type for option in self._options])
     
     def __calculate_implied_vols(self) -> list:
         try:
@@ -526,11 +524,7 @@ class SVIParamsFinder:
             a,b,p,m,s = params
             k_vec = np.array([np.log(option._strike/self._spot) for option in self._options])
             w_vec = fct_vi(a,b,p,m,s,k_vec)
-            print(a,b,p,m,s)
-            print(w_vec)
-            print(k_vec)
             result = np.all(w_vec>0)
-            print(np.all(w_vec>0))
             return result
 
         def new_initial(bounds):
