@@ -113,6 +113,8 @@ class OptionPricer:
             return self._model.rho(self._spot, self._rate)
 
     def implied_vol(self, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> float:
+        if self._price is None:
+            self._price = self.price
         if self._model == "Black-Scholes-Merton":
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate, price=self._price)
             self._model = dict_models[self._model]
@@ -131,3 +133,6 @@ class OptionPricer:
             return svi_params_finder.find_svi_parameters()
         else:
             raise ValueError("Didn't find SVI Parameters with these inputs!")
+
+    def get_option(self):
+        return VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)

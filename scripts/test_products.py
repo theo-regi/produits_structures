@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption, OptionMarket
+from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption, OptionMarket, SSVICalibration
 from utils import Rates_curve
 from constants import OptionType
 
@@ -255,6 +255,18 @@ class TestOptionMarket(unittest.TestCase):
         if OTM_v == True:
             self.assertTrue(all(m >= 0 for m in moneyness_l_c))
             self.assertTrue(all(m <= 0 for m in moneyness_l_p))
+
+class TestSSVI(unittest.TestCase):
+    def setUp(self):
+        """Set up the SSVI object"""
+        self.ssvi = SSVICalibration("Black-Scholes-Merton", "data/options.csv", "data/underlying_prices.csv", "13/03/2025")
+
+    def test_calibrate(self):
+        """Test calibration of SSVI parameters"""
+        params = self.ssvi.calibrate_SSVI()
+        print(params)
+        self.assertEqual(isinstance(params), dict)
+        self.assertEqual(len(params), 6)
 
 if __name__ == "__main__":
     unittest.main()

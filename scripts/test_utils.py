@@ -1,5 +1,5 @@
 import unittest
-from scripts.utils import Maturity_handler, PaymentScheduleHandler, Rates_curve, SVIParamsFinder
+from scripts.utils import Maturity_handler, PaymentScheduleHandler, Rates_curve
 from scripts.pricers import OptionPricer
 from constants import OptionType
 from products import OptionMarket
@@ -288,11 +288,10 @@ class TestOptionMarket_SSI_Connection(unittest.TestCase):
         p_date = "13/03/2025"
         maturity = "16/05/2025" #Checking first pricing date, first maturity
 
-        list_types, list_strikes, list_prices, spot = self.option_market.get_values_for_calibration_SVI(p_date, maturity,(0.7, 1.3) , OTM_v)
+        list_types, list_strikes, list_prices, spot, t_options = self.option_market.get_values_for_calibration_SVI(p_date, maturity,(0.7, 1.3) , OTM_v)
         self.pricer = OptionPricer(p_date, maturity, model="Black-Scholes-Merton", spot=spot, div_rate=0, currency="EUR", rate=0, notional=1)
 
         self.params = self.pricer.svi_params(list_types, list_strikes, list_prices)
-
 
     def test_connection(self):
         """Test the connection to the SSI server."""

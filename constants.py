@@ -21,6 +21,9 @@ SOLVER_METHOD = 'L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', 'Powell', 'T
 #Solver method for the SVI parameters optimization, will be used in the ImpledVolatilityFinder class in the SVI_params function:
 SVI_SOLVER_METHOD = 'SLSQP' #Prefered method will be SLSQP because of all the constraints and bounds we have to set for the SVI parameters optimization.
 
+#SSVI solver method:
+SSVI_METHOD = 'SLSQP'
+
 #Initial Parameters Nielson-Siegel:
 INITIAL_NS = [1,1,1,1]
 
@@ -103,6 +106,16 @@ VOLUME_CALIBRATION = True
 
 #Threshold for volume calibration (under average):
 VOLUME_THRESHOLD = 0.7
+
+#SSVI initial guess for the parameters (k, v_o, b_inf, p, mu, l):
+INITIAL_SSVI = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+#Solver parameters
+OPTIONS_SOLVER_SSVI = {
+        'ftol': 1e-12,       # tolerance for convergence
+        'maxiter': 10000,    # iteration limit
+        'disp': True         # optional: shows progress in console
+    }
 
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT

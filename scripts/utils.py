@@ -551,6 +551,7 @@ class SVIParamsFinder:
             return None
 
 
+
 #Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
 
 #Price diffision models: Mouvement Brownien, (Jump Diffusion, Diffusion Stochastique what are those ?) + besoin de prise en compte des divs
@@ -582,3 +583,4 @@ def calculate_yield(cashflows: dict, market_price:float, initial_rate:float=INIT
     
     ytm_solution = fsolve(ytm, initial_rate)[0]
     return ytm_solution*100
+
