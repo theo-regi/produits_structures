@@ -583,4 +583,3 @@ def calculate_yield(cashflows: dict, market_price:float, initial_rate:float=INIT
     
     ytm_solution = fsolve(ytm, initial_rate)[0]
     return ytm_solution*100
-

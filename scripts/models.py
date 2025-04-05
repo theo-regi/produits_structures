@@ -1,4 +1,3 @@
-from products import EQDProduct
 import numpy as np
 from scipy.stats import norm
 from constants import OptionType
@@ -11,7 +10,7 @@ class BSM:
     """
     Black-Scholes-Merton model for pricing options.
     """
-    def __init__(self, option:EQDProduct, sigma:float=None) -> None:
+    def __init__(self, option, sigma:float=None) -> None:
         self._sigma = sigma
         self._option = option
 
