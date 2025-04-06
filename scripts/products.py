@@ -1029,6 +1029,7 @@ class SSVICalibration:
 
         self._maturities_t = {}
         self._params = self._params_svis
+        print(self._params)
         self._atm_prices = self._reprice_ATM_options
         self._atm_options = {}
         
@@ -1037,19 +1038,16 @@ class SSVICalibration:
         """
         Returns a dict of SVI parameters for all the maturities for a given dict of options (equal one maturity).
         """
-        try:
-            params = {}
-            for maturity_date in self._maturities:
-                list_types, list_strikes, list_prices, self._spot, t_options = self._option_market.get_values_for_calibration_SVI(self._pricing_date, maturity_date, self._moneyness_level , self._OTM_calibration)
-                print(list_types, list_strikes, list_prices, self._spot, t_options)
-                if list_types is not None:
-                    pricer = OptionPricer(self._pricing_date, maturity_date, model=self._model, spot=self._spot, div_rate=self._div_rate, currency=self._currency, rate=self._rate, notional=1)
-                    params[maturity_date] = pricer.svi_params(list_types, list_strikes, list_prices, self._spot)
-                    self._maturities_t[maturity_date]=t_options
-            return params
-        
-        except Exception as e:
-            ValueError(f"Error in getting params for SVI given the maturity: {e}")
+        params = {}
+        for maturity_date in self._maturities:
+            print(maturity_date)
+            list_types, list_strikes, list_prices, self._spot, t_options = self._option_market.get_values_for_calibration_SVI(self._pricing_date, maturity_date, self._moneyness_level , self._OTM_calibration)
+            print(self._spot)
+            if list_types is not None:
+                pricer = OptionPricer(self._pricing_date, maturity_date, model=self._model, spot=self._spot, div_rate=self._div_rate, currency=self._currency, rate=self._rate, notional=1)
+                params[maturity_date]= pricer.svi_params(list_types, list_strikes, list_prices)
+                self._maturities_t[maturity_date]=t_options
+        return params
 
     @property
     def _reprice_ATM_options(self)->dict:
@@ -1058,14 +1056,12 @@ class SSVICalibration:
         """
         prices = {}
         for maturity_date in self._maturities:
-            #Get SVI_volatility for ATM options (k=1)
             params = self._params[maturity_date]
-            atm_vol = np.sqrt((params[0] + params[1] * (params[2]*(np.log(1)-params[3])+np.sqrt(np.log(1)^2 + params[4]^2)))/self._maturities_t[maturity_date])
-            #Get ATM option price
-            pricer = OptionPricer(self._pricing_date, maturity_date, OptionType.CALL, self._model, self._spot, self._spot, self._div_rate, rate=self._rate, sigma=atm_vol)
-            prices[self._maturities_t[maturity_date]] = pricer.price
-            #Get ATM option price for the maturity date
-            self._atm_options[maturity_date] = pricer.get_option()
+            if params is not None:
+                atm_vol = np.sqrt((params[0] + params[1] * (params[2]*(np.log(1)-params[3])+np.sqrt(np.log(1)^2 + params[4]^2)))/self._maturities_t[maturity_date])
+                pricer = OptionPricer(self._pricing_date, maturity_date, OptionType.CALL, self._model, self._spot, self._spot, self._div_rate, rate=self._rate, sigma=atm_vol)
+                prices[self._maturities_t[maturity_date]] = pricer.price
+                self._atm_options[maturity_date] = pricer.get_option()
         return prices
 
     def _calibrate_theta(self)->list:
@@ -1080,7 +1076,6 @@ class SSVICalibration:
             Objective function to minimize.
             """
             k, v_o, v_inf = params
-            #Calculate the sum of squared errors between the model and the market prices
             maturities = np.array(self._maturities_t.values())
             phi_vec = fct_theta(k,v_o,v_inf, maturities)
             prices = [fct_valo(option, phi).price(self._spot) for option, phi in zip(list(self._atm_options.values()), phi_vec)]
@@ -1195,7 +1190,6 @@ class OptionPricer:
             self._model = dict_models[self._model](self._option, self._sigma)
             price = self._model.price(self._spot)
             self.payoff = price * np.exp(self._rate * self._option.T) * self._notional
-            #print(self.payoff)
             return price
         
     @property
@@ -1266,7 +1260,8 @@ class OptionPricer:
                 options.append(VanillaOption(start_date=self._start_date, end_date=self._end_date, type=vector_types[i], strike=vector_strikes[i], notional=self._notional, currency=self._currency, div_rate=self._div_rate))
             self._model = dict_models[self._model]
             svi_params_finder = SVIParamsFinder(model=self._model, vector_options=options, vector_prices=vector_prices, method_implied_vol=method, spot=self._spot, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point)
-            return svi_params_finder.find_svi_parameters()
+            result = svi_params_finder.find_svi_parameters()
+            return result
         else:
             raise ValueError("Didn't find SVI Parameters with these inputs!")
 

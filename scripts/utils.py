@@ -504,6 +504,7 @@ class SVIParamsFinder:
         """
         Find SVI parameters for the given options matrice.
         """
+
         fct_vi=lambda a,b,p,m,s,k: a + b * (p * (k - m) + np.sqrt((k - m)**2 + s**2))
         fct_valo=lambda option, svi_vol: self._model(option, svi_vol)
 
@@ -511,6 +512,10 @@ class SVIParamsFinder:
             a,b,p,m,s = params
             k_vec = np.array([np.log(option._strike/self._spot) for option in self._options])
             w_vec = fct_vi(a,b,p,m,s,k_vec)
+            """
+            if self.T < 0.025:     #With very small maturities, we stabilize the volatilies with bigger division to reduce noise in the optimzation.
+                svi_vols = np.sqrt(w_vec/0.025)
+            else:"""                   #Most of the times, we use normal formulas
             svi_vols = np.sqrt(w_vec/self.T)
             prices = [fct_valo(option, svi_vol).price(self._spot) for option, svi_vol in zip(self._options, svi_vols)]
             
@@ -529,22 +534,27 @@ class SVIParamsFinder:
 
         def new_initial(bounds):
             perturbation = np.ones(len(self._initial_svi)) * np.random.uniform(-5,5)
-            new_svi *= perturbation
+            new_svi = self._initial_svi*perturbation
+            for i in range(len(self._initial_svi)):
+                if bounds[i][1] == None:
+                    bounds[i][1] = 1000000
+                if bounds[i][0] == None:    
+                    bounds[i][0] = -1000000
             if all(new_svi[i] < bounds[i][1] and new_svi[i] > bounds[i][0] for i in range(len(self._initial_svi))):
                 return new_svi
             else:
-                return new_initial()
+                return new_initial(bounds)
 
         counstraits=({'type': 'ineq','fun':param_constraint},)
         #bounds for (a,b,p,m,sigma)
-        bounds = ((None,None), (0,None), (-0.999999, 0.999999), (None,None), self._bounds)
+        bounds = [[-5,5], [1e-12,5], [-0.999999, 0.999999], [-5,5], self._bounds]#for sigma self._bounds
         result = minimize(objective, x0=self._initial_svi, bounds=bounds, method=self._svi_method, constraints=counstraits, options=OPTIONS_SOLVER_SVI)
         count=0
-        if result.success and check_params(result.x) == True:
+        if result.success and check_params(result.x) == True and result["fun"]<50:
             return result.x
-        elif count < 100:
+        elif count < 10:
             count +=1
-            self._initial_svi = new_initial()
+            self._initial_svi = new_initial(bounds)
             return self.find_svi_parameters()
         else:
             print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {count}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")

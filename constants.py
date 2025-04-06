@@ -64,7 +64,7 @@ BASE_STRIKE = 100
 BASE_RATE=0.05
 
 #Base dividend rate for EQD pricings, will be used if not provided by the functions.
-BASE_DIV_RATE=0.03
+BASE_DIV_RATE=0
 
 #Base currency for EQD pricings, will be used if not provided by the functions.
 BASE_CURRENCY='EUR'
@@ -90,8 +90,8 @@ INITIAL_SVI = [0.1, 0.1, 0.1, 0.1, 0.1]
 
 #Solver parameters
 OPTIONS_SOLVER_SVI = {
-        'ftol': 1e-12,       # tolerance for convergence
-        'maxiter': 10000,    # iteration limit
+        'ftol': 1e-6,       # tolerance for convergence
+        'maxiter': 200,    # iteration limit
         'disp': True         # optional: shows progress in console
     }
 
@@ -112,8 +112,8 @@ INITIAL_SSVI = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
 
 #Solver parameters
 OPTIONS_SOLVER_SSVI = {
-        'ftol': 1e-12,       # tolerance for convergence
-        'maxiter': 10000,    # iteration limit
+        'ftol': 1e-6,       # tolerance for convergence
+        'maxiter': 100,    # iteration limit
         'disp': True         # optional: shows progress in console
     }
 

@@ -286,7 +286,7 @@ class TestOptionMarket_SSVI_Connection(unittest.TestCase):
         OTM_v = True
         self.option_market = OptionMarket("data/options.csv", "data/underlying_prices.csv")
         p_date = "13/03/2025"
-        maturity = "16/05/2025" #Checking first pricing date, first maturity
+        maturity = '21/03/2025' #Checking first pricing date, first maturity "16/05/2025"
 
         list_types, list_strikes, list_prices, spot, t_options = self.option_market.get_values_for_calibration_SVI(p_date, maturity,(0.7, 1.3) , OTM_v)
         self.pricer = OptionPricer(p_date, maturity, model="Black-Scholes-Merton", spot=spot, div_rate=0, currency="EUR", rate=0, notional=1)
