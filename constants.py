@@ -92,7 +92,7 @@ INITIAL_SVI = [0.1, 0.1, 0.1, 0.1, 0.1]
 OPTIONS_SOLVER_SVI = {
         'ftol': 1e-6,       # tolerance for convergence
         'maxiter': 200,    # iteration limit
-        'disp': True         # optional: shows progress in console
+        'disp': False         # optional: shows progress in console
     }
 
 #Moneyness bounds: to take only slight OTM/ATM options.
@@ -108,7 +108,7 @@ VOLUME_CALIBRATION = True
 VOLUME_THRESHOLD = 0.7
 
 #SSVI initial guess for the parameters (k, v_o, b_inf, p, mu, l):
-INITIAL_SSVI = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+INITIAL_SSVI = [0.5, 0.04, 0.01, 0.1, 0.1, 0.1]
 
 #Solver parameters
 OPTIONS_SOLVER_SSVI = {

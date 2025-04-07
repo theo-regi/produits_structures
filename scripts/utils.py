@@ -549,7 +549,7 @@ class SVIParamsFinder:
         #bounds for (a,b,p,m,sigma)
         bounds = [[-5,5], [1e-12,5], [-0.999999, 0.999999], [-5,5], self._bounds]#for sigma self._bounds
         result = minimize(objective, x0=self._initial_svi, bounds=bounds, method=self._svi_method, constraints=counstraits, options=OPTIONS_SOLVER_SVI)
-        count=0
+        count=1
         if result.success and check_params(result.x) == True and result["fun"]<50:
             return result.x
         elif count < 10:

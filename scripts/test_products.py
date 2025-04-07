@@ -265,8 +265,8 @@ class TestSSVI(unittest.TestCase):
         """Test calibration of SSVI parameters"""
         params = self.ssvi.calibrate_SSVI()
         print(params)
-        self.assertEqual(isinstance(params), dict)
-        self.assertEqual(len(params), 6)
+        self.assertEqual(isinstance(params, dict), True)
+        self.assertEqual(len(list(params.values())), 6)
 
 class TestPricer(unittest.TestCase):
     def setUp(self):

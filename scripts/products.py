@@ -989,7 +989,7 @@ class OptionMarket:
         - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options (in % or 0.00 format)
         """
         options = self.get_options_for_moneyness(price_date, maturity, moneyness_bounds, calibrate_on_OTM, calibrate_on_volume, volume_bounds)
-        return [option._type for option in options], [option._strike for option in options], [option._price for option in options], self._spot, options[0].T
+        return [option._type for option in options], [option._strike for option in options], [option._price for option in options], self._spot, options[0].T, options
 
 #Classe de calibration SSVI:
 class SSVICalibration:
@@ -1011,6 +1011,181 @@ class SSVICalibration:
     """
     def __init__(self, model:str, data_path:str, file_name_underlying:str, pricing_date:str, moneyness_level:tuple=BOUNDS_MONEYNESS, OTM_calibration:bool=OTM_CALIBRATION, div_rate:float=BASE_DIV_RATE, currency:str=BASE_CURRENCY, rate:float=BASE_RATE, initial_ssvi:list=INITIAL_SSVI, ssvi_method:str=SSVI_METHOD, ssvi_options:dict=OPTIONS_SOLVER_SSVI) -> None:
         self._model = model
+        self._model_obj = dict_models[model]
+        self._pricing_date = pricing_date
+        self._option_market = OptionMarket(data_path, file_name_underlying)
+        self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())
+        self._moneyness_level = moneyness_level
+        self._OTM_calibration = OTM_calibration
+        self._initial_params_ssvi = initial_ssvi
+        self._ssvi_method = ssvi_method
+        self._ssvi_options = ssvi_options
+        self._options = self._get_market_options()
+        #self._market_prices = np.array([option._price for option in self._options])
+
+        self._div_rate = div_rate
+        self._currency = currency
+        self._rate = rate
+        self._spot = None
+
+        self._options_for_calibration = None
+        self._maturities_t = {}
+        self._params = self._params_svis
+        self._calibration_prices = np.array([option._price for option in self._options_for_calibration])
+        self._atm_options = {}
+        self._atm_prices = self._reprice_ATM_options
+
+    @property
+    def _params_svis(self)->dict:
+        """
+        Returns a dict of SVI parameters for all the maturities for a given dict of options (equal one maturity).
+        """
+        params = {}
+        res_options_for_calibration = []
+        for maturity_date in self._maturities:
+            list_types, list_strikes, list_prices, self._spot, t_options, options_for_calibration = self._option_market.get_values_for_calibration_SVI(self._pricing_date, maturity_date, self._moneyness_level , self._OTM_calibration)
+            if list_types is not None:
+                pricer = OptionPricer(self._pricing_date, maturity_date, model=self._model, spot=self._spot, div_rate=self._div_rate, currency=self._currency, rate=self._rate, notional=1)
+                params[maturity_date]= pricer.svi_params(list_types, list_strikes, list_prices)
+                res_options_for_calibration.extend(options_for_calibration)
+                self._maturities_t[maturity_date]=t_options
+        
+        self._options_for_calibration = res_options_for_calibration
+        return params
+
+    @property
+    def _reprice_ATM_options(self)->dict:
+        """
+        Use the params to price ATM implied volatility for each maturity and use those to calibrate phi function of SSVI.
+        """
+        prices = {}
+        for maturity_date in self._maturities:
+            params = self._params[maturity_date]
+            if params is not None: #np.log(1) = 0
+                atm_vol = np.sqrt((params[0] + params[1] * (params[2]*(-params[3]) + np.sqrt((-params[3])**2 + params[4]**2)))/self._maturities_t[maturity_date])
+                pricer = OptionPricer(self._pricing_date, maturity_date, OptionType.CALL, self._model, self._spot, self._spot, self._div_rate, rate=self._rate, sigma=atm_vol)
+                prices[self._maturities_t[maturity_date]] = pricer.price
+                self._atm_options[maturity_date] = pricer.get_option()
+        return prices
+
+    def _calibrate_theta(self)->list:
+        """
+        Used to calibrate phi function of the SSVI.
+        """
+        fct_theta=lambda k,v_o,v_inf,t: (((1-np.exp(-k*t))/(k*t))*(v_o-v_inf)+v_inf)*t
+        fct_valo=lambda option, theta: self._model_obj(option, theta)
+
+        def new_initial(bounds):
+            perturbation = np.ones(len(self._initial_params_ssvi[0:3])) * np.random.uniform(-5,5)
+            new_init = self._initial_params_ssvi[0:3]*perturbation
+            for i in range(len(bounds)):
+                if bounds[i][1] == None:
+                    bounds[i][1] = 1000000
+                if bounds[i][0] == None:    
+                    bounds[i][0] = -1000000
+
+            if all(new_init[i] < bounds[i][1] and new_init[i] > bounds[i][0] for i in range(len(self._initial_params_ssvi[0:3]))):
+                return new_init
+            else:
+                return new_initial(bounds)
+
+        def objective(params)->float:
+            """
+            Objective function to minimize.
+            """
+            k, v_o, v_inf = params
+            maturities = np.array(list(self._maturities_t.values()))
+            theta_vec = np.sqrt(fct_theta(k,v_o,v_inf, maturities)/maturities)
+            prices = [fct_valo(option, theta).price(self._spot) for option, theta in zip(list(self._atm_options.values()), theta_vec)]
+            return np.sum((np.array(prices)-np.array(list(self._atm_prices.values())))**2)
+        
+        bounds = ([None,None], [1e-6,None], [1e-6,None]) #((1e-16,10), (1e-6,5), (1e-6,5))
+        result = minimize(objective, self._initial_params_ssvi[0:3], bounds=bounds, method=self._ssvi_method, options=self._ssvi_options)
+
+        if result.success and result["fun"]<20:
+            return result.x
+        elif result.success and result["fun"]>20:
+            self._initial_params_ssvi[0:3]=new_initial(bounds)
+            return self._calibrate_theta()
+        else:
+            print(f"Optimization failed.") #Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {count}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
+            return None
+        
+    def calibrate_SSVI(self)->dict:
+        """
+        Calibrate the SSVI parameters for all maturities.
+        """
+        k, v_0, v_inf = self._calibrate_theta()
+        fct_theta=lambda k,v_o,v_inf,t: (((1-np.exp(-k*t))/(k*t))*(v_o-v_inf)+v_inf)*t
+        fct_prices=lambda option, vol: self._model_obj(option,vol).price(self._spot)
+
+        def ssvi_total_variance(thetas, k_vec, rho, mu, l):
+            """
+            SSVI total variance function.
+            """
+            phi = mu*(thetas **l)
+            term = phi * k_vec + rho
+            sqrt_term = np.sqrt(term**2 + (1 - rho**2))
+            return 0.5 * thetas * (1 + rho * phi * k_vec + sqrt_term)
+        
+        vec_maturities = np.array([option.T for option in self._options_for_calibration])
+        vec_thetas = np.array(fct_theta(k,v_0,v_inf, vec_maturities))
+        vec_k = np.array([np.log(option._strike/self._spot) for option in self._options_for_calibration])
+
+        def objective(params)->float:
+            """
+            Objective function to minimize.
+            """
+            rho, mu, l = params
+            vec_w = ssvi_total_variance(vec_thetas, vec_k, rho, mu, l)
+            ssvi_vol = np.sqrt(vec_w/vec_maturities)
+            prices = [fct_prices(option, vol) for option, vol in zip(self._options_for_calibration, ssvi_vol)]
+            return np.sum((np.array(prices)-self._calibration_prices)**2)
+
+        bounds = ((-0.9999,0.9999), (1e-16, None), (1e-16, 1))
+        result = minimize(objective, self._initial_params_ssvi[-3:], bounds=bounds, method=self._ssvi_method, options=self._ssvi_options)
+        if result.success:
+            rho, mu, l = result.x
+            params = {"K": k, "v_0": v_0, "v_inf": v_inf, "rho": rho, "mu": mu, "l": l}
+            return params
+        else:
+            print(f"Calibration failed.")
+            return None
+    
+    def _get_market_options(self)->dict:
+        """
+        Returns the options market.
+        """
+        list_options = []
+        for maturity in self._maturities:
+            for option in self._option_market._options_matrices[self._pricing_date][maturity]['call']:
+                list_options.append(option)
+            for option in self._option_market._options_matrices[self._pricing_date][maturity]['put']:
+                list_options.append(option)
+
+        return list_options
+
+#Classe SSVI:
+class SSVICalibration2:
+    """
+    Class to calibrate SSVI parameters for a given underlying stock, based on SVI calibration ATM for different maturities.
+    Repricing the ATMs options for each maturity, and calibrating the SSVI parameters for ATM options.
+    Finally, calibrating the whole SSVI equations to get a full Volatility Surface.
+    Be carefull to pass only options for the pricings, need to be cleaned on wanted moneyness levels and liquidity.
+    Input:
+    - model: Model used for options pricing (we advise BSM for fast executions).
+    - data_path: path to the options dataset.
+    - file_name_underlying: path of the underlying asset file.
+    - pricing_date: date of the desired SSVI.
+    - moneyness_level: tuple of min and max moneyness to filter the options (in % or 0.00 format, optional).
+    - OTM_calibration: boolean to calibrate on OTM options or not (optional).
+
+    Returns:
+    - params: dictionary of SSVI parameters for all maturities.    
+    """
+    def __init__(self, model:str, data_path:str, file_name_underlying:str, pricing_date:str, moneyness_level:tuple=BOUNDS_MONEYNESS, OTM_calibration:bool=OTM_CALIBRATION, div_rate:float=BASE_DIV_RATE, currency:str=BASE_CURRENCY, rate:float=BASE_RATE, initial_ssvi:list=INITIAL_SSVI, ssvi_method:str=SSVI_METHOD, ssvi_options:dict=OPTIONS_SOLVER_SSVI) -> None:
+        self._model = model
+        self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
         self._option_market = OptionMarket(data_path, file_name_underlying)
         self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())
@@ -1029,10 +1204,10 @@ class SSVICalibration:
 
         self._maturities_t = {}
         self._params = self._params_svis
-        print(self._params)
-        self._atm_prices = self._reprice_ATM_options
-        self._atm_options = {}
-        
+        self._thetas=self.calculate_thetas()
+        print(self._thetas)
+        pass
+
     @property
     def _params_svis(self)->dict:
         """
@@ -1040,89 +1215,27 @@ class SSVICalibration:
         """
         params = {}
         for maturity_date in self._maturities:
-            print(maturity_date)
             list_types, list_strikes, list_prices, self._spot, t_options = self._option_market.get_values_for_calibration_SVI(self._pricing_date, maturity_date, self._moneyness_level , self._OTM_calibration)
-            print(self._spot)
             if list_types is not None:
                 pricer = OptionPricer(self._pricing_date, maturity_date, model=self._model, spot=self._spot, div_rate=self._div_rate, currency=self._currency, rate=self._rate, notional=1)
                 params[maturity_date]= pricer.svi_params(list_types, list_strikes, list_prices)
                 self._maturities_t[maturity_date]=t_options
         return params
-
-    @property
-    def _reprice_ATM_options(self)->dict:
-        """
-        Use the params to price ATM implied volatility for each maturity and use those to calibrate phi function of SSVI.
-        """
-        prices = {}
-        for maturity_date in self._maturities:
-            params = self._params[maturity_date]
-            if params is not None:
-                atm_vol = np.sqrt((params[0] + params[1] * (params[2]*(np.log(1)-params[3])+np.sqrt(np.log(1)^2 + params[4]^2)))/self._maturities_t[maturity_date])
-                pricer = OptionPricer(self._pricing_date, maturity_date, OptionType.CALL, self._model, self._spot, self._spot, self._div_rate, rate=self._rate, sigma=atm_vol)
-                prices[self._maturities_t[maturity_date]] = pricer.price
-                self._atm_options[maturity_date] = pricer.get_option()
-        return prices
-
-    def _calibrate_theta(self)->list:
-        """
-        Used to calibrate phi function of the SSVI.
-        """
-        fct_theta=lambda k,v_o,v_inf,t: (((1-np.exp(-k*t))/(k*t))*(v_o-v_inf)+v_inf)*t
-        fct_valo=lambda option, phi: self._model(option, phi)
-
-        def objective(params)->float:
-            """
-            Objective function to minimize.
-            """
-            k, v_o, v_inf = params
-            maturities = np.array(self._maturities_t.values())
-            phi_vec = fct_theta(k,v_o,v_inf, maturities)
-            prices = [fct_valo(option, phi).price(self._spot) for option, phi in zip(list(self._atm_options.values()), phi_vec)]
-            return np.sum((np.array(prices)-np.array(self._atm_prices))**2)
-        
-        bounds = ((None,None), (0,None), (0,None))
-        result = minimize(objective, self._initial_params_ssvi[0:2], bounds=bounds, method=self._ssvi_method, options=self._ssvi_options)
-        if result.success:
-            return result.x
-        else:
-            print(f"Optimization failed.") #Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {count}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
-            return None
-        
-    def calibrate_SSVI(self)->dict:
-        """
-        Calibrate the SSVI parameters for all maturities.
-        """
-        k, v_0, v_inf = self._calibrate_theta()
-        fct_theta = lambda k,v_o,v_inf,t: (((1-np.exp(-k*t))/(k*t))*(v_o-v_inf)+v_inf)*t
-        fct_phi = lambda theta_t, mu, l: mu*theta_t^l 
-        fct_w=lambda k, rho, mu, l, theta_t: (theta_t/2)*(1 + rho*fct_phi(theta_t, mu, l)*k + np.sqrt((fct_phi(theta_t, mu, l)*k+rho)^2 + (1 - rho^2)))
-        fct_prices=lambda option, vol: self._model(option,vol).price(self._spot)
-
-        vec_maturities = np.array([option.T for option in self._options])
-        vec_thetas = np.array(fct_theta(k,v_0,v_inf, vec_maturities))
-        vec_k = np.array([np.log(option._strike/self._spot) for option in self._options])
-
-        def objective(params)->float:
-            """
-            Objective function to minimize.
-            """
-            rho, mu, l = params
-            vec_w = fct_w(vec_k, rho, mu, l, vec_thetas)
-            ssvi_vol = np.sqrt(vec_w/vec_maturities)
-            prices = [fct_prices(option, vol) for option, vol in zip(self._options, ssvi_vol)]
-            return np.sum((np.array(prices)-self._market_prices)**2)
-
-        bounds = ((-0.9999,0.9999), (1e-16, None), (1e-16, 1))
-        result = minimize(objective, self._initial_params_ssvi, bounds=bounds, method=self._ssvi_method, options=self._ssvi_options)
-        if result.success:
-            rho, mu, l = result.x
-            params = {"K": k, "v_0": v_0, "v_inf": v_inf, "rho": rho, "mu": mu, "l": l}
-            return self._params
-        else:
-            print(f"Calibration failed.")
-            return None
     
+    def calculate_thetas(self)->dict:
+        """
+        Calculate the theta of the SSVI parameters for all maturities.
+        """
+        t_vec = np.array(list(self._maturities_t.values()))
+        params_array = np.array(list(self._params.values()))
+        a = params_array[:, 0]
+        b = params_array[:, 1]
+        rho = params_array[:, 2]
+        m = params_array[:, 3]
+        s = params_array[:, 4]
+        thetas = a + b * (rho * (-m) + np.sqrt((m)**2 + s**2))
+        return dict(zip(t_vec, thetas))
+
     def _get_market_options(self)->dict:
         """
         Returns the options market.
@@ -1135,7 +1248,7 @@ class SSVICalibration:
                 list_options.append(option)
 
         return list_options
-    
+
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différentes classes prices---------------------
 #-------------------------------------------------------------------------------------------------------
