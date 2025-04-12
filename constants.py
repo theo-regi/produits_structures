@@ -117,6 +117,12 @@ OPTIONS_SOLVER_SSVI = {
         'disp': True         # optional: shows progress in console
     }
 
+#Delta to place each strikes on the local vol surface.
+BASE_DELTA_K = 0.025 #think delta k as a percentage
+
+#Base limits for strikes ie: -/+30% of the spot:
+BASE_LIMITS_K = (0.7, 1.3) #50% of strike and 150% du strike = (0.5,1.5)
+
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT
 class OptionType(enum.Enum):

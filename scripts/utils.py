@@ -512,10 +512,6 @@ class SVIParamsFinder:
             a,b,p,m,s = params
             k_vec = np.array([np.log(option._strike/self._spot) for option in self._options])
             w_vec = fct_vi(a,b,p,m,s,k_vec)
-            """
-            if self.T < 0.025:     #With very small maturities, we stabilize the volatilies with bigger division to reduce noise in the optimzation.
-                svi_vols = np.sqrt(w_vec/0.025)
-            else:"""                   #Most of the times, we use normal formulas
             svi_vols = np.sqrt(w_vec/self.T)
             prices = [fct_valo(option, svi_vol).price(self._spot) for option, svi_vol in zip(self._options, svi_vols)]
             

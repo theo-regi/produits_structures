@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption, OptionMarket, SSVICalibration, OptionPricer
+from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption, OptionMarket, SSVICalibration, OptionPricer, DupireLocalVol
 from utils import Rates_curve
 from constants import OptionType
 
@@ -268,9 +268,27 @@ class TestSSVI(unittest.TestCase):
         self.assertEqual(isinstance(params, dict), True)
         self.assertEqual(len(list(params.values())), 6)
 
+class TestLocalVolMatrix(unittest.TestCase):
+    def setUp(self):
+        """Set up the localvol object"""
+        self.local_vol = DupireLocalVol("Black-Scholes-Merton", "data/options.csv", "data/underlying_prices.csv", "13/03/2025")
+        
+    def test_get_base_vol_matrix(self):
+        import pandas as pd
+        vol_matrix = self.local_vol.get_implied_vol_matrix()
+        #print(vol_matrix)
+        #vol_matrix.to_excel("data/vol_matrix.xlsx")
+        self.assertEqual(isinstance(vol_matrix, pd.DataFrame),True)
+
+    def test_get_local_implied_vol(self):
+        local_vol = self.local_vol.get_local_implied_vol(0.5, 190)
+        #print(local_vol)
+        self.assertEqual(isinstance(local_vol, float),True)
+        self.assertAlmostEqual(local_vol, 0.32776, places=4)
+
 class TestPricer(unittest.TestCase):
     def setUp(self):
-        self.pricer =OptionPricer(
+        self.pricer=OptionPricer(
             start_date="28/03/2025",
             end_date="28/03/2026",
             type=OptionType.CALL,

@@ -2,7 +2,7 @@ from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURREN
     BASE_DIV_RATE, BOUNDS_MONEYNESS, OTM_CALIBRATION, VOLUME_CALIBRATION, VOLUME_THRESHOLD, \
     INITIAL_SSVI, SSVI_METHOD, OPTIONS_SOLVER_SSVI,BASE_NOTIONAL, CONVENTION_DAY_COUNT, \
     ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT,BASE_MODEL,\
-    BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT
+    BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K
 
 from scipy.optimize import minimize
 import numpy as np
@@ -1020,7 +1020,6 @@ class SSVICalibration:
         self._initial_params_ssvi = initial_ssvi
         self._ssvi_method = ssvi_method
         self._ssvi_options = ssvi_options
-        self._options = self._get_market_options()
         #self._market_prices = np.array([option._price for option in self._options])
 
         self._div_rate = div_rate
@@ -1151,62 +1150,33 @@ class SSVICalibration:
         else:
             print(f"Calibration failed.")
             return None
-    
-    def _get_market_options(self)->dict:
-        """
-        Returns the options market.
-        """
-        list_options = []
-        for maturity in self._maturities:
-            for option in self._option_market._options_matrices[self._pricing_date][maturity]['call']:
-                list_options.append(option)
-            for option in self._option_market._options_matrices[self._pricing_date][maturity]['put']:
-                list_options.append(option)
 
-        return list_options
 
-#Classe SSVI:
-class SSVICalibration2:
+#Classe LocalVol:
+class DupireLocalVol:
     """
-    Class to calibrate SSVI parameters for a given underlying stock, based on SVI calibration ATM for different maturities.
-    Repricing the ATMs options for each maturity, and calibrating the SSVI parameters for ATM options.
-    Finally, calibrating the whole SSVI equations to get a full Volatility Surface.
-    Be carefull to pass only options for the pricings, need to be cleaned on wanted moneyness levels and liquidity.
-    Input:
-    - model: Model used for options pricing (we advise BSM for fast executions).
-    - data_path: path to the options dataset.
-    - file_name_underlying: path of the underlying asset file.
-    - pricing_date: date of the desired SSVI.
-    - moneyness_level: tuple of min and max moneyness to filter the options (in % or 0.00 format, optional).
-    - OTM_calibration: boolean to calibrate on OTM options or not (optional).
-
-    Returns:
-    - params: dictionary of SSVI parameters for all maturities.    
+    Class for local volatility parametrization, used to calibrate / fit local volatility surface.
     """
-    def __init__(self, model:str, data_path:str, file_name_underlying:str, pricing_date:str, moneyness_level:tuple=BOUNDS_MONEYNESS, OTM_calibration:bool=OTM_CALIBRATION, div_rate:float=BASE_DIV_RATE, currency:str=BASE_CURRENCY, rate:float=BASE_RATE, initial_ssvi:list=INITIAL_SSVI, ssvi_method:str=SSVI_METHOD, ssvi_options:dict=OPTIONS_SOLVER_SSVI) -> None:
+    def __init__(self, model:str, data_path:str, file_name_underlying:str, pricing_date:str, moneyness_level:tuple=BOUNDS_MONEYNESS, OTM_calibration:bool=OTM_CALIBRATION, div_rate:float=BASE_DIV_RATE, currency:str=BASE_CURRENCY, rate:float=BASE_RATE, delta_k:float=BASE_DELTA_K, limits_K:tuple=BASE_LIMITS_K) -> None:
         self._model = model
         self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
         self._option_market = OptionMarket(data_path, file_name_underlying)
-        self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())
+        self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())[:-1]
         self._moneyness_level = moneyness_level
         self._OTM_calibration = OTM_calibration
-        self._initial_params_ssvi = initial_ssvi
-        self._ssvi_method = ssvi_method
-        self._ssvi_options = ssvi_options
-        self._options = self._get_market_options()
-        self._market_prices = np.array([option._price for option in self._options])
 
         self._div_rate = div_rate
         self._currency = currency
         self._rate = rate
         self._spot = None
+        self._delta_K = delta_k
+        self._limits_K = limits_K
 
         self._maturities_t = {}
+        self._options_for_calibration = None
         self._params = self._params_svis
-        self._thetas=self.calculate_thetas()
-        print(self._thetas)
-        pass
+        self._implied_vol_df = self._build_implied_vol_matrix()
 
     @property
     def _params_svis(self)->dict:
@@ -1214,40 +1184,123 @@ class SSVICalibration2:
         Returns a dict of SVI parameters for all the maturities for a given dict of options (equal one maturity).
         """
         params = {}
+        res_options_for_calibration = []
         for maturity_date in self._maturities:
-            list_types, list_strikes, list_prices, self._spot, t_options = self._option_market.get_values_for_calibration_SVI(self._pricing_date, maturity_date, self._moneyness_level , self._OTM_calibration)
+            list_types, list_strikes, list_prices, self._spot, t_options, options_for_calibration = self._option_market.get_values_for_calibration_SVI(self._pricing_date, maturity_date, self._moneyness_level , self._OTM_calibration)
             if list_types is not None:
                 pricer = OptionPricer(self._pricing_date, maturity_date, model=self._model, spot=self._spot, div_rate=self._div_rate, currency=self._currency, rate=self._rate, notional=1)
                 params[maturity_date]= pricer.svi_params(list_types, list_strikes, list_prices)
+                res_options_for_calibration.extend(options_for_calibration)
                 self._maturities_t[maturity_date]=t_options
+        
+        self._options_for_calibration = res_options_for_calibration
         return params
+
+    def _build_implied_vol_matrix(self) -> pd.DataFrame:
+        """
+        With the SVIs parameters, rebuild an implied vol matrix, complete that will serve as a basis for Dupuire formula.
+        The idea is that we already have the maturities. And for each maturities, and a given delta_k, we will get strikes in some limits.
+        Then, get implied vol for each K and maturities.
+        """
+        fct_vi=lambda a,b,p,m,s,k: a + b * (p * (k - m) + np.sqrt((k - m)**2 + s**2))
+        iv_df = pd.DataFrame()
+
+        K = self._spot
+        vector_K = []
+        while K >= self._spot * self._limits_K[0]:
+            K -= self._spot * self._delta_K
+            vector_K.append(K)
+        K = self._spot
+        while K <= self._spot * self._limits_K[1]:
+            K += self._spot * self._delta_K
+            vector_K.append(K)
+        vector_K=np.array(sorted(vector_K))
+
+        for t in range(len(self._maturities)):
+            a,b,p,m,s = self._params[self._maturities[t]]
+            k_vec = np.array(np.log(vector_K/self._spot))
+            w_vec = fct_vi(a,b,p,m,s,k_vec)
+            vols = np.sqrt(w_vec/self._maturities_t[self._maturities[t]])
+            row = pd.Series(data=vols, index=vector_K, name=self._maturities_t[self._maturities[t]])
+            iv_df = pd.concat([iv_df, row.to_frame().T], axis=0)
+
+        return iv_df
+
+    def get_implied_vol_matrix(self):
+        return self._implied_vol_df
+
+    def get_local_implied_vol(self, maturity:float, strike:float) -> float:
+        """
+        Get the local implied vol for a given maturity and strike, from Dupire Formula.
+        """
+        fct_w = lambda a,b,p,m,s,k: a + b * (p * (k - m) + np.sqrt((k - m)**2 + s**2))
+        fct_d_sigma_T = lambda sigma_K_T1, sigma_K_T2, T1, T2: (sigma_K_T2 - sigma_K_T1)/(T2 - T1)
+        fct_d_sigma_K = lambda sigma_K1_T, sigma_K2_T, K1, K2: (sigma_K2_T - sigma_K1_T)/(K2 - K1)
+
+        def fct_d_sigma2_K(K1, K, K2, sigma_K1_T, sigma_K_T, sigma_K2_T):
+            h1 = K - K1
+            h2 = K2 - K
+            return (2 / (h1 + h2)) * ((sigma_K2_T - sigma_K_T) / h2 - (sigma_K_T - sigma_K1_T) / h1)
+
+        k = np.log(strike/self._spot)
+        under_mat, upper_mat = self.get_closest_maturities(maturity)
+        under_strike, upper_strike = self.get_closest_strikes(strike)
+        
+        dates = np.array(list(self._maturities_t.keys()))
+        t = np.array(list(self._maturities_t.values()))
+        date_params_T2 = dates[np.where(t==upper_mat)[0]][0]
+        params_T2 = self._params[date_params_T2]
+
+        s_IMP = np.sqrt(fct_w(*params_T2, k)/upper_mat)
+        s2_IMP=s_IMP**2
+
+        date_params_T1 = dates[np.where(t==under_mat)[0]][0]
+        params_T1 = self._params[date_params_T1]
+        sigma_K_T1=np.sqrt(fct_w(*params_T1, k)/under_mat)
+
+        sigma_K1_T = self._implied_vol_df.loc[upper_mat, under_strike]
+        sigma_K2_T = self._implied_vol_df.loc[upper_mat, upper_strike]
+
+        d_sigma_T = fct_d_sigma_T(sigma_K_T1, s_IMP, under_mat, upper_mat)
+        d_sigma_K = fct_d_sigma_K(sigma_K1_T, sigma_K2_T, under_strike, upper_strike)
+        d_sigma2_K = fct_d_sigma2_K(under_strike, strike, upper_strike, sigma_K1_T, s_IMP, sigma_K2_T)
+
+        numerator=s2_IMP + 2 * s_IMP * maturity * (d_sigma_T + (self._rate - self._div_rate) * strike * d_sigma_K)
+        denominator=((1+strike*d_sigma_K*np.sqrt(maturity))**2) + (s_IMP*(strike**2)*maturity)*(d_sigma2_K-self._div_rate*(d_sigma_K**2)*np.sqrt(maturity))
+        """
+        In denominator: ((1+strike*self._div_rate*d_sigma_K*np.sqrt(maturity))**2) have a div_rate = 0 in my test, which is making first part =0.
+        In the slides: there is this *q in first part of the denominator. Looking at some papers/quant stack exchange, looks like there is no *q in first part.
+        """
+        return np.sqrt(numerator/denominator)
+
+
+    def get_closest_maturities(self, maturity:float)->list:
+        """
+        Get the 2 closest maturities for a given maturity.
+        """
+        maturities = list(self._maturities_t.values())
+        maturities.sort()
+        under_mat, upper_mat = maturities[0], maturities[-1]
+        for i in range(len(maturities)):
+            if maturities[i]>under_mat and maturities[i]<=maturity:
+                under_mat = maturities[i]
+            if maturities[i]<upper_mat and maturities[i]>=maturity:
+                upper_mat = maturities[i]
+        return under_mat, upper_mat
     
-    def calculate_thetas(self)->dict:
+    def get_closest_strikes(self, strike:float)->float:
         """
-        Calculate the theta of the SSVI parameters for all maturities.
+        Get the 2 closest strikes for a given strike.
         """
-        t_vec = np.array(list(self._maturities_t.values()))
-        params_array = np.array(list(self._params.values()))
-        a = params_array[:, 0]
-        b = params_array[:, 1]
-        rho = params_array[:, 2]
-        m = params_array[:, 3]
-        s = params_array[:, 4]
-        thetas = a + b * (rho * (-m) + np.sqrt((m)**2 + s**2))
-        return dict(zip(t_vec, thetas))
+        strikes = list(self._implied_vol_df.columns)
+        under_strike, upper_strike = strikes[0], strikes[-1]
+        for i in range(len(strikes)):
+            if strikes[i]>under_strike and strikes[i]<=strike:
+                under_strike = strikes[i]
+            if strikes[i]<upper_strike and strikes[i]>=strike:
+                upper_strike = strikes[i]
+        return under_strike, upper_strike
 
-    def _get_market_options(self)->dict:
-        """
-        Returns the options market.
-        """
-        list_options = []
-        for maturity in self._maturities:
-            for option in self._option_market._options_matrices[self._pricing_date][maturity]['call']:
-                list_options.append(option)
-            for option in self._option_market._options_matrices[self._pricing_date][maturity]['put']:
-                list_options.append(option)
-
-        return list_options
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différentes classes prices---------------------
@@ -1380,3 +1433,4 @@ class OptionPricer:
 
     def get_option(self):
         return VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
+
