@@ -556,8 +556,6 @@ class SVIParamsFinder:
             print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {count}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
             return None
 
-
-
 #Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
 
 #Price diffision models: Mouvement Brownien, (Jump Diffusion, Diffusion Stochastique what are those ?) + besoin de prise en compte des divs

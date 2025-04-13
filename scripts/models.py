@@ -90,7 +90,17 @@ class BSM:
             ValueError("Option type not supported !")
             pass
 
-
 #Black 76:
 
 #Heston model:
+class Heston:
+    """
+    Heston Model: for options pricing, preferably autocalls, vanilla call/puts (avoid for short term maturities).
+    /!\ Recommanded for derivatives when using stocastic volatilities,
+    /!\ Not recommanded for digits / barriers options.
+
+    Input:
+    - 
+    """
+    def __init__(self) -> None:
+        pass

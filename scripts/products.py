@@ -2,9 +2,14 @@ from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURREN
     BASE_DIV_RATE, BOUNDS_MONEYNESS, OTM_CALIBRATION, VOLUME_CALIBRATION, VOLUME_THRESHOLD, \
     INITIAL_SSVI, SSVI_METHOD, OPTIONS_SOLVER_SSVI,BASE_NOTIONAL, CONVENTION_DAY_COUNT, \
     ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT,BASE_MODEL,\
-    BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K
+    BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K, \
+    BASE_CALIBRATION_HESTON, BASE_MAX_T, BASE_T_INTERVAL, INITIAL_HESTON, HESTON_BOUNDS,\
+    HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES
 
+from joblib import Parallel, delayed
+from functools import lru_cache
 from scipy.optimize import minimize
+from scipy.integrate import quad
 import numpy as np
 from abc import ABC, abstractmethod
 from utils import PaymentScheduleHandler, Rates_curve
@@ -991,6 +996,19 @@ class OptionMarket:
         options = self.get_options_for_moneyness(price_date, maturity, moneyness_bounds, calibrate_on_OTM, calibrate_on_volume, volume_bounds)
         return [option._type for option in options], [option._strike for option in options], [option._price for option in options], self._spot, options[0].T, options
 
+    def get_values_for_calibration_Heston(self, price_date:str, maturity:str, moneyness_bounds:tuple=BOUNDS_MONEYNESS, calibrate_on_OTM:bool=OTM_CALIBRATION, calibrate_on_volume:bool=VOLUME_CALIBRATION, volume_bounds:float=VOLUME_THRESHOLD) -> list:
+        """
+        Function to get the values for the calibration of the Heston model.
+
+        Input:
+        - spot (float, non optional): spot price of the underlying asset
+        - price_date (string, optional): price date of the options
+        - maturity (string, optional): maturity date of the options
+        - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options (in % or 0.00 format)
+        """
+        options = self.get_options_for_moneyness(price_date, maturity, moneyness_bounds, calibrate_on_OTM, calibrate_on_volume, volume_bounds)
+        return self._spot, options
+
 #Classe de calibration SSVI:
 class SSVICalibration:
     """
@@ -1020,7 +1038,6 @@ class SSVICalibration:
         self._initial_params_ssvi = initial_ssvi
         self._ssvi_method = ssvi_method
         self._ssvi_options = ssvi_options
-        #self._market_prices = np.array([option._price for option in self._options])
 
         self._div_rate = div_rate
         self._currency = currency
@@ -1033,6 +1050,8 @@ class SSVICalibration:
         self._calibration_prices = np.array([option._price for option in self._options_for_calibration])
         self._atm_options = {}
         self._atm_prices = self._reprice_ATM_options
+        self._ssvi_params = {}
+        self.calibrate_SSVI()
 
     @property
     def _params_svis(self)->dict:
@@ -1110,7 +1129,7 @@ class SSVICalibration:
             print(f"Optimization failed.") #Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {count}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
             return None
         
-    def calibrate_SSVI(self)->dict:
+    def calibrate_SSVI(self):
         """
         Calibrate the SSVI parameters for all maturities.
         """
@@ -1145,12 +1164,41 @@ class SSVICalibration:
         result = minimize(objective, self._initial_params_ssvi[-3:], bounds=bounds, method=self._ssvi_method, options=self._ssvi_options)
         if result.success:
             rho, mu, l = result.x
-            params = {"K": k, "v_0": v_0, "v_inf": v_inf, "rho": rho, "mu": mu, "l": l}
-            return params
+            self._ssvi_params = {"K": k, "v_0": v_0, "v_inf": v_inf, "rho": rho, "mu": mu, "l": l}
+            pass
         else:
             print(f"Calibration failed.")
-            return None
+            pass
 
+    def get_options_calibration(self):
+        """
+        Returns the options used for calibration.
+        """
+        return self._options_for_calibration
+
+    def get_spot_SSVI(self):
+        return self._spot
+
+    def get_ssvi_params(self):
+        return self._ssvi_params
+    
+    def __call__(self, K, t):
+        """
+        Return implied volatility σ(K, t)
+        """
+        fct_theta=lambda k,v_o,v_inf,t: (((1-np.exp(-k*t))/(k*t))*(v_o-v_inf)+v_inf)*t
+
+        k = np.log(K/self._spot)
+        params = self.get_ssvi_params()
+        kappa, v_0, v_inf, rho, mu, l = params['K'], params['v_0'], params['v_inf'], params['rho'], params['mu'], params['l']
+
+        theta = fct_theta(kappa, v_0, v_inf, t)
+        phi = mu * theta* l
+        term = phi * k + rho
+        sqrt_term = np.sqrt(term ** 2 + (1 - rho ** 2))
+        w = 0.5 * theta * (1 + rho * phi * k + sqrt_term)
+        sigma = np.sqrt(w / t)
+        return sigma
 
 #Classe LocalVol:
 class DupireLocalVol:
@@ -1273,7 +1321,6 @@ class DupireLocalVol:
         """
         return np.sqrt(numerator/denominator)
 
-
     def get_closest_maturities(self, maturity:float)->list:
         """
         Get the 2 closest maturities for a given maturity.
@@ -1301,6 +1348,183 @@ class DupireLocalVol:
                 upper_strike = strikes[i]
         return under_strike, upper_strike
 
+#Classe helper pour préparer/calibrer l'Heston model:
+class HestonHelper:
+    """
+    Class to calibrate Heston model parameters, there is the choice between calibrating on SSVI or actual market prices.
+    
+    Input:
+    - model: Model used for options pricing (we advise BSM for fast executions).
+    - data_path: path to the options dataset.
+    - file_name_underlying: path of the underlying asset file.
+    - pricing_date: starting date.
+    - moneyness_level: tuple of min and max moneyness to filter the options (in % or 0.00 format, optional).
+    - OTM_calibration: boolean to calibrate on OTM options or not (optional).
+    - div_rate: dividend rate (optional).
+    - currency: currency of the underlying asset (optional).
+    - rate: risk-free rate (optional).
+    - K_delta: delta for the strikes (optional).
+    - max_t: maximum maturity for the options (optional).
+    - t_interval: time interval for the options (optional).
+    - initial_params_heston: initial parameters for the Heston model (optional).
+    - heston_method: method used for optimization (optional).
+    - bounds_heston: bounds for the Heston model parameters (optional).
+    - options_heston: options for the optimization (optional).
+    """
+    def __init__(self,model:str,data_path:str,file_name_underlying:str,pricing_date:str,moneyness_level:tuple=BASE_LIMITS_K_H,\
+                K_delta:float=BASE_DELTA_K, OTM_calibration:bool=OTM_CALIBRATION, div_rate:float=BASE_DIV_RATE,\
+                currency:str=BASE_CURRENCY, rate:float=BASE_RATE, type_calibration:str=BASE_CALIBRATION_HESTON, max_t:float=BASE_MAX_T, t_interval:float=BASE_T_INTERVAL,\
+                initial_params_heston:list=INITIAL_HESTON, heston_method:str=HESTON_METHOD, bounds_heston:tuple=HESTON_BOUNDS, options_heston:dict=HESTON_CALIBRATION_OPTIONS)->None:
+        
+        self._type_calibration=type_calibration
+        self._model=model
+        self._data_path=data_path
+        self._file_name_underlying=file_name_underlying
+        self._pricing_date=pricing_date
+        self._moneyness_level=moneyness_level
+        self._OTM_calibration=OTM_calibration
+        self._div_rate=div_rate
+        self._rate=rate
+        self._currency=currency
+
+        self._max_T=max_t
+        self._time_interval=t_interval
+        self._K_delta=K_delta
+    
+        self._initial_params_heston=initial_params_heston
+        self._heston_method=heston_method
+        self._bounds_heston=bounds_heston
+        self._options_heston=options_heston
+
+        self._results_heston=None
+
+        if self._type_calibration=="SSVI":
+            ssvi_calibrator=SSVICalibration(model=self._model, data_path=self._data_path, file_name_underlying=self._file_name_underlying, pricing_date=self._pricing_date, moneyness_level=self._moneyness_level, OTM_calibration=self._OTM_calibration, div_rate=self._div_rate, currency=self._currency, rate=self._rate)
+            self._spot=ssvi_calibrator.get_spot_SSVI()
+            self._options_for_calibration=ssvi_calibrator._options_for_calibration
+            self._options_for_calibration=self._options_for_calibration[:int(len(self._options_for_calibration)*CUTOFF_H)]
+            self._ssvi_function=ssvi_calibrator.__call__
+            self._results_heston=self._calibrate_on_ssvi()
+        elif self._type_calibration=="Market":
+            options = []
+            option_market=OptionMarket(self._data_path, self._file_name_underlying)
+            for maturity in list(option_market._options_matrices[self._pricing_date].keys()):
+                self._spot, opt=option_market.get_values_for_calibration_Heston(self._pricing_date, maturity, self._moneyness_level, self._OTM_calibration)
+                options.extend(opt)
+            self._options_for_calibration=options
+            self._results_heston=self._calibrate_on_market()
+        else:
+            print("Calibration type not recognized ! Please choose: Market or SSVI")
+            pass
+        pass
+
+    @lru_cache(maxsize=512)
+    def _CFHeston(self, r, tau, kappa, eta, theta, v0, rho):
+        """
+        Heston characteristic function.
+
+        Inputs:
+        - r: Risk-free rate
+        - tau: Time to maturity
+        - kappa: Mean reversion speed
+        - eta: Volatility of volatility
+        - theta: Long-term volatility
+        - v0: Initial volatility
+        - rho: Correlation between asset and volatility
+        """
+        """
+        i = complex(0.0,1.0)
+        D1 = lambda u: np.sqrt(np.power(kappa-eta*rho*i*u,2)+(u*u+i*u)*eta*eta)
+        g = lambda u: (kappa-eta*rho*i*u-D1(u))/(kappa-eta*rho*i*u+D1(u))
+        C = lambda u: (1.0-np.exp(-D1(u)*tau))/(eta*eta*(1.0-g(u)*np.exp(-D1(u)*tau)))*(kappa-eta*rho*i*u-D1(u))
+
+        A  = lambda u: r * i*u *tau + kappa*theta*tau/eta/eta *(kappa-eta*rho*i*u-D1(u))\
+            - 2*kappa*theta/eta/eta*np.log((1.0-g(u)*np.exp(-D1(u)*tau))/(1.0-g(u)))
+    
+        cf = lambda u: np.exp(A(u) + C(u)*v0)
+        return cf
+        """
+        i = complex(0,1)
+        def cf(u):
+            d = np.sqrt((kappa - eta * rho * i * u)**2 + eta**2 * (u**2 + i * u))
+            g = (kappa - eta * rho * i * u - d) / (kappa - eta * rho * i * u + d)
+            exp_dt = np.exp(-d * tau)
+            
+            A = i * u * r * tau + \
+                (kappa * theta / eta**2) * ((kappa - eta * rho * i * u - d) * tau - 2 * np.log((1 - g * exp_dt) / (1 - g)))
+            C = ((kappa - eta * rho * i * u - d) / eta**2) * ((1 - exp_dt) / (1 - g * exp_dt))
+
+            return np.exp(A + C * v0)
+        return cf
+
+    def _calibrate_on_ssvi(self)->dict:
+        """
+        Calibration of the Heston model's parameters on the SSVI calibrated on the market. 
+        """
+        market_prices=[]
+        market_strikes=[]
+        market_T=[]
+        for option in self._options_for_calibration:
+            sigma = self._ssvi_function(option._strike, option.T)
+            option_pricer=OptionPricer(self._pricing_date, option._end_date, OptionType.CALL, self._model, self._spot, option._strike, self._div_rate, sigma=sigma, rate=self._rate)
+            market_prices.append(option_pricer.price)
+            market_strikes.append(option._strike)
+            market_T.append(option.T)
+        return self._calibrate_Heston(market_prices, market_strikes, market_T)
+        
+    def _calibrate_on_market(self)->dict:
+        """
+        Calibration of the Heston model's parameters on the market data directly.
+        """
+        market_prices=[]
+        market_strikes=[]
+        market_T=[]
+        for option in self._options_for_calibration:
+            market_prices.append(option._price)
+            market_strikes.append(option._strike)
+            market_T.append(option.T)
+        return self._calibrate_Heston(market_prices, market_strikes, market_T)
+
+    def _calibrate_Heston(self, market_prices:list, market_strikes:list, market_T:list)->dict:
+        market_strikes=np.array(market_strikes)
+        market_T=np.array(market_T)
+
+        def error(params, P, K, T):
+            v0, kappa, theta, eta, rho = params
+            cf = self._CFHeston(self._rate, T, kappa, eta, theta, v0, rho)
+            try:
+                p_fourrier=self._heston_call_price_fourrier(K, T, cf)
+                return (p_fourrier-P)**2
+            except Exception:
+                return 1e6
+
+        def objective(params)->float:
+            errors=Parallel(n_jobs=N_CORES)(delayed(error)(params, P, K, T) for P, K, T in zip(market_prices, market_strikes, market_T))
+            return sum(errors)
+
+        result = minimize(objective, self._initial_params_heston, method=self._heston_method, bounds=self._bounds_heston, options=self._options_heston)
+        if result.success:
+            return dict(zip(['v0', 'kappa', 'theta', 'eta', 'rho'], result.x))
+        else:
+            raise ValueError('Cannot reach Heston Model parametrization')
+
+    def _heston_call_price_fourrier(self, K, T, cf):
+        i = complex(0.0,1.0)
+        def integrand_pj(u,j):
+            if j == 1:
+                numerator = cf(u-i)
+                denominator = cf(-i)
+                integrand = np.real(np.exp(-i * u * np.log(K)) * numerator / (i*u*denominator))
+            elif j == 2:
+                integrand = np.real(np.exp(-i*u*np.log(K)) * cf(u)/(i*u))
+            return integrand
+
+        P1 = 0.5 + (1/np.pi) * quad(lambda u: integrand_pj(u, 1), 0, 50, limit=50)[0]
+        P2 = 0.5 + (1/np.pi) * quad(lambda u: integrand_pj(u, 2), 0, 50, limit=50)[0]
+        return self._spot * P1 - np.exp(-self._rate*T) * K * P2
+
+    def get_heston_params(self)->dict:
+        return self._results_heston
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différentes classes prices---------------------

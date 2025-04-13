@@ -1,6 +1,8 @@
 import numpy as np
 import unittest
-from products import ZCBond, FixedLeg, FloatLeg, Swap, VanillaOption, OptionMarket, SSVICalibration, OptionPricer, DupireLocalVol
+from products import ZCBond, FixedLeg, FloatLeg,\
+    Swap, VanillaOption, OptionMarket, SSVICalibration,\
+    OptionPricer, DupireLocalVol, HestonHelper
 from utils import Rates_curve
 from constants import OptionType
 
@@ -263,7 +265,7 @@ class TestSSVI(unittest.TestCase):
 
     def test_calibrate(self):
         """Test calibration of SSVI parameters"""
-        params = self.ssvi.calibrate_SSVI()
+        params = self.ssvi.get_ssvi_params
         print(params)
         self.assertEqual(isinstance(params, dict), True)
         self.assertEqual(len(list(params.values())), 6)
@@ -329,6 +331,19 @@ class TestPricer(unittest.TestCase):
         # Example test case for payoff calculation
         self.pricer.price
         self.assertAlmostEqual(self.pricer.payoff, 2.024207616, places=4)
+
+class TestHestonCalibration(unittest.TestCase):    
+    def test_heston_calibration_SSVI(self):
+        self._heston_calibrator=HestonHelper("Black-Scholes-Merton", "data/options.csv", "data/underlying_prices.csv", "13/03/2025", type_calibration='SSVI')
+        params = self._heston_calibrator.get_heston_params()
+        print(params)
+        self.assertEqual(isinstance(params, dict), True)
+
+    def test_heston_calibration_Market(self):
+        self._heston_calibrator=HestonHelper("Black-Scholes-Merton", "data/options.csv", "data/underlying_prices.csv", "13/03/2025", type_calibration='Market')
+        params = self._heston_calibrator.get_heston_params()
+        print(params)
+        self.assertEqual(isinstance(params, dict), True)
 
 if __name__ == "__main__":
     unittest.main()
