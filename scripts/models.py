@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.stats import norm
-from constants import OptionType
+from constants import OptionType, NUMBER_PATHS_H, NB_STEPS_H
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différents models diffusion/pricing------------
@@ -102,5 +102,105 @@ class Heston:
     Input:
     - 
     """
-    def __init__(self) -> None:
+    def __init__(self, option, params:dict, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H) -> None:
+        self._nb_paths=nb_paths
+        self._nb_steps=nb_steps
+        self._option=option
+        self._v0,self._kappa,self._theta,self._eta,self._rho,=list(params.values())
+
+        self._payoffs=[]
+        self._spots=[]
         pass
+
+    def price(self,spot:float):
+        """
+        Calculate the price of the given option.
+        """
+        self.calculate_pay_offs(spot)
+        return np.exp(-self._option._rate*self._option.T) * np.mean(self._payoffs)
+
+    def delta(self, spot:float) -> float:
+        """
+        Calculate Delta of the given option.
+        """
+        pass
+
+    def gamma(self, spot:float) -> float:
+        """
+        Calculate Gamma of the given option.
+        """
+        pass
+
+    def vega(self, spot:float) -> float:
+        """
+        Calculate Vega of the given option.
+        """
+        pass
+
+    def theta(self, spot:float, rate:float=None) -> float:
+        """
+        Calculate Theta of the given option, in case of using the option rate for the dividend, give a risk free rate.
+        """
+        pass
+        
+    def rho(self, spot:float, rate:float=None) -> float:
+        """
+        Calculate Rho of the given option, in case of using the option rate for the dividend, give a risk free rate.
+        """
+        pass
+
+    def calculate_pay_offs(self, spot:float) -> list:
+        """
+        Computes the pay_off of the given option.
+
+        Input: Spot price of the underlying asset.
+        """
+        paths=self._generate_paths(spot)
+        self._spots=paths['Spots'][:,-1]
+
+        if self._option._type == OptionType.CALL:
+            self._payoffs=np.maximum(self._spots-self._option._strike, 0.0)
+            pass
+        elif self._option._type == OptionType.PUT:
+            self._payoffs=np.maximum(self._option._strike-self._spots, 0.0)
+            pass
+        else:
+            ValueError("Option type not supported !")
+            pass
+
+    def _generate_paths(self, spot:float) -> np.ndarray:
+        """
+        Generate paths for the Heston model using the AES method.
+        """
+        def CIR_Sample(nb_paths,kappa,eta,theta,s,t,v_s):
+            delta = 4.0 *kappa*theta/eta/eta
+            c= 1.0/(4.0*kappa)*eta*eta*(1.0-np.exp(-kappa*(t-s)))
+            kappaBar = 4.0*kappa*v_s*np.exp(-kappa*(t-s))/(eta*eta*(1.0-np.exp(-kappa*(t-s))))
+            sample = c* np.random.noncentral_chisquare(delta,kappaBar,nb_paths)
+            return  sample
+
+        z1 = np.random.normal(0,1,size=(self._nb_paths, self._nb_steps))
+        w1 = np.zeros((self._nb_paths, self._nb_steps+1))
+        v = np.zeros((self._nb_paths, self._nb_steps+1))
+        s = np.zeros((self._nb_paths, self._nb_steps+1))
+        v[:,0] = self._v0
+        s[:,0] = np.log(spot)
+
+        t=np.zeros((self._nb_steps+1))
+        dt = self._option.T/self._nb_steps
+
+        for i in range(0, self._nb_steps):
+            if self._nb_paths > 1:
+                z1[:,i] * (z1[:,i] - np.mean(z1[:,i]))/np.std(z1[:,i])
+            w1[:,i+1]=w1[:,i]+np.power(dt,0.5)*z1[:,i]
+
+            v[:,i+1]=CIR_Sample(self._nb_paths, self._kappa, self._eta, self._theta, 0, dt, v[:,i])
+            k0 = (self._option._rate - self._rho/self._eta*self._kappa*self._theta)*dt
+            k1 = (self._rho*self._kappa/self._eta-0.5)*dt - self._rho/self._eta
+            k2 = self._rho/self._eta
+            s[:,i+1]=s[:,i]+k0 + k1*v[:,i] + k2*v[:,i+1] + np.sqrt((1-self._rho**2)*v[:,i])*(w1[:,i+1]-w1[:,i])
+            t[i+1]=t[i]+dt
+
+        sts = np.exp(s)
+        paths = {"time":t, "Spots": sts}
+        return paths

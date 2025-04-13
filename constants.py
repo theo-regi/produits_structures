@@ -133,10 +133,10 @@ BASE_MAX_T= 5.0
 BASE_T_INTERVAL=0.25
 
 #Initial guess for Heston model:
-INITIAL_HESTON= [0.05, 0.2, 0.2, 0.2, -0.5] #[0.1, 0.1, 0.1, 0.1, 0] #v0, kappa, theta, eta, rho
+INITIAL_HESTON= [0.1, 0.1, 0.1, 0.1, 0] #[0.05, 0.2, 0.2, 0.2, -0.5]  #v0, kappa, theta, eta, rho
 
 #Base method for heston model calibration solver:
-HESTON_METHOD='L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', 'Powell', 'TNC', but you will prefer L-BFGS-B for those basic problems
+HESTON_METHOD='L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', but you will prefer L-BFGS-B for those basic problems
 
 #Bounds for heston parameters:
 HESTON_BOUNDS=(
@@ -155,15 +155,22 @@ HESTON_CALIBRATION_OPTIONS={
 }
 
 #Base limits of moneyness for heston (reduced to accelerate the calibration):
-if BASE_CALIBRATION_HESTON=='Market': BASE_LIMITS_K_H= (0.07, 1.30) 
+if BASE_CALIBRATION_HESTON=='Market': BASE_LIMITS_K_H= (0.07, 1.30)
 else: BASE_LIMITS_K_H=(0.085, 1.15) #85% of strike and 115% du strike = (0.85,1.15), we do recommand larger moneyness calibration
 
 #Fraction of the options to retain for calibration.
-if BASE_CALIBRATION_HESTON=='Market': CUTOFF_H=0.8 #80% of the options will be used for calibration
+if BASE_CALIBRATION_HESTON=='Market': CUTOFF_H=1 #80% of the options will be used for calibration
 else: CUTOFF_H=0.5
 
 #Number of cores to use for parallelization:
 N_CORES=1
+
+#__________________________Heston simulation CONSTANTS:_______________________
+#Number of paths for the simulation
+NUMBER_PATHS_H = 100
+
+#Number of steps for the simulation
+NB_STEPS_H=100
 
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT

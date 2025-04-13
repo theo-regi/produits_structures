@@ -5,6 +5,7 @@ from products import ZCBond, FixedLeg, FloatLeg,\
     OptionPricer, DupireLocalVol, HestonHelper
 from utils import Rates_curve
 from constants import OptionType
+import matplotlib.pyplot as plt
 
 class TestZCBond(unittest.TestCase):
     def setUp(self):
@@ -344,6 +345,31 @@ class TestHestonCalibration(unittest.TestCase):
         params = self._heston_calibrator.get_heston_params()
         print(params)
         self.assertEqual(isinstance(params, dict), True)
+
+class TestHestonPricing(unittest.TestCase):
+    def setUp(self):
+            params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
+            
+            self.pricer=OptionPricer(
+            start_date="13/03/2025",
+            end_date="16/05/2025",
+            type=OptionType.CALL,
+            model="Heston",
+            spot=209.68,
+            strike=210,
+            currency="USD",
+            notional=1,
+            model_parameters=params,
+            nb_paths=1000,
+            nb_steps=1000)
+
+    def test_price_payoffs(self):
+        price = self.pricer.price
+        payoffs, spots =self.pricer._payoff, self.pricer._spots_paths
+        #plt.scatter(spots, payoffs, label='Call Payoff', s=10)
+        #plt.show()
+        self.assertAlmostEqual(price, 12.17, places=1)
+        self.assertEqual(isinstance(payoffs, list), True)
 
 if __name__ == "__main__":
     unittest.main()

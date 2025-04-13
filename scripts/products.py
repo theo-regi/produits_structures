@@ -4,7 +4,8 @@ from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURREN
     ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT,BASE_MODEL,\
     BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K, \
     BASE_CALIBRATION_HESTON, BASE_MAX_T, BASE_T_INTERVAL, INITIAL_HESTON, HESTON_BOUNDS,\
-    HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES
+    HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES, NUMBER_PATHS_H,\
+    NB_STEPS_H
 
 from joblib import Parallel, delayed
 from functools import lru_cache
@@ -14,14 +15,14 @@ import numpy as np
 from abc import ABC, abstractmethod
 from utils import PaymentScheduleHandler, Rates_curve
 import utils as utils
-from models import BSM
+from models import BSM, Heston
 from utils import ImpliedVolatilityFinder, SVIParamsFinder
 import pandas as pd
 from scipy.stats import norm
 from collections import defaultdict
 
 #Supported models for options pricing
-dict_models = {"Black-Scholes-Merton": BSM}
+dict_models = {"Black-Scholes-Merton": BSM, "Heston": Heston}
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes de produits----------------------------
@@ -810,13 +811,13 @@ class VanillaOption(EQDProduct):
         self._volume=volume
         pass
 
-    def npv(self, spot:float=BASE_SPOT) -> float:
+    def npv(self, spot):
         """
         Calculate the NPV of the equity derivative product.
         """
         return self.payoff(spot) * self._notional * np.exp(-self._rate * self.T)
     
-    def payoff(self, spot:float=BASE_SPOT) -> float:
+    def payoff(self, spot):
         """
         Calculate the payoff of the equity derivative product.
         """
@@ -1551,7 +1552,10 @@ class OptionPricer:
     - sigma: Implied volatility (optional).
     - rate: Risk-free interest rate (optional).
     """
-    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, model:str=BASE_MODEL, spot:float=BASE_SPOT, strike:float=BASE_STRIKE, div_rate:float=BASE_DIV_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None, rate:float=BASE_RATE, price:float=None) -> None:
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, model:str=BASE_MODEL, spot:float=BASE_SPOT, strike:float=BASE_STRIKE,\
+                 div_rate:float=BASE_DIV_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL,\
+                 format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None, rate:float=BASE_RATE, price:float=None,\
+                 model_parameters:dict=None, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H) -> None:
         self._model = model
         self._start_date = start_date
         self._end_date = end_date
@@ -1567,19 +1571,30 @@ class OptionPricer:
         self._sigma = sigma
         self._rate = rate
 
-        self.payoff = None
+        self._model_parameters=model_parameters
+        self._nb_paths=nb_paths
+        self._nb_steps=nb_steps
+        self._spots_paths = None
+
+        self._payoff = None
         self._price = price
 
     @property
     def price(self):
+        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
         if self._model == "Black-Scholes-Merton":
             if self._sigma is None:
                 self._sigma = BASE_SIGMA
             
-            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
             self._model = dict_models[self._model](self._option, self._sigma)
             price = self._model.price(self._spot)
-            self.payoff = price * np.exp(self._rate * self._option.T) * self._notional
+            self._payoff = price * np.exp(self._rate * self._option.T) * self._notional
+            return price
+        
+        if self._model == "Heston":
+            self._model = dict_models[self._model](self._option, self._model_parameters, self._nb_paths, self._nb_steps)
+            price = self._model.price(self._spot)
+            self._payoff, self._spots_paths = self._model._payoffs, self._model._spots
             return price
         
     @property
