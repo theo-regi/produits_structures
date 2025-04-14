@@ -5,7 +5,7 @@ from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURREN
     BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K, \
     BASE_CALIBRATION_HESTON, BASE_MAX_T, BASE_T_INTERVAL, INITIAL_HESTON, HESTON_BOUNDS,\
     HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES, NUMBER_PATHS_H,\
-    NB_STEPS_H
+    NB_STEPS_H, NB_PATHS_GREEKS, NB_STEPS_GREEKS
 
 from joblib import Parallel, delayed
 from functools import lru_cache
@@ -15,14 +15,14 @@ import numpy as np
 from abc import ABC, abstractmethod
 from utils import PaymentScheduleHandler, Rates_curve
 import utils as utils
-from models import BSM, Heston
+from models import BSM, Heston, Dupire
 from utils import ImpliedVolatilityFinder, SVIParamsFinder
 import pandas as pd
 from scipy.stats import norm
 from collections import defaultdict
 
 #Supported models for options pricing
-dict_models = {"Black-Scholes-Merton": BSM, "Heston": Heston}
+dict_models = {"Black-Scholes-Merton": BSM, "Heston": Heston, "Dupire": Dupire}
 
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes de produits----------------------------
@@ -821,6 +821,7 @@ class VanillaOption(EQDProduct):
         """
         Calculate the payoff of the equity derivative product.
         """
+        
         if self._type == OptionType.CALL:
             return max(spot - self._strike, 0)
         elif self._type == OptionType.PUT:
@@ -829,6 +830,9 @@ class VanillaOption(EQDProduct):
             ValueError("Option type not recognized !")
             pass
         
+    def __deep_copy__(self):
+        return VanillaOption(self._start_date, self._end_date, self._type, self._strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
+
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
 #de dividendes etc.
@@ -1433,18 +1437,6 @@ class HestonHelper:
         - v0: Initial volatility
         - rho: Correlation between asset and volatility
         """
-        """
-        i = complex(0.0,1.0)
-        D1 = lambda u: np.sqrt(np.power(kappa-eta*rho*i*u,2)+(u*u+i*u)*eta*eta)
-        g = lambda u: (kappa-eta*rho*i*u-D1(u))/(kappa-eta*rho*i*u+D1(u))
-        C = lambda u: (1.0-np.exp(-D1(u)*tau))/(eta*eta*(1.0-g(u)*np.exp(-D1(u)*tau)))*(kappa-eta*rho*i*u-D1(u))
-
-        A  = lambda u: r * i*u *tau + kappa*theta*tau/eta/eta *(kappa-eta*rho*i*u-D1(u))\
-            - 2*kappa*theta/eta/eta*np.log((1.0-g(u)*np.exp(-D1(u)*tau))/(1.0-g(u)))
-    
-        cf = lambda u: np.exp(A(u) + C(u)*v0)
-        return cf
-        """
         i = complex(0,1)
         def cf(u):
             d = np.sqrt((kappa - eta * rho * i * u)**2 + eta**2 * (u**2 + i * u))
@@ -1555,7 +1547,7 @@ class OptionPricer:
     def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, model:str=BASE_MODEL, spot:float=BASE_SPOT, strike:float=BASE_STRIKE,\
                  div_rate:float=BASE_DIV_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL,\
                  format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None, rate:float=BASE_RATE, price:float=None,\
-                 model_parameters:dict=None, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H) -> None:
+                 model_parameters:dict=None, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H, data_path:str=None, file_name_underlying:str=None) -> None:
         self._model = model
         self._start_date = start_date
         self._end_date = end_date
@@ -1579,6 +1571,9 @@ class OptionPricer:
         self._payoff = None
         self._price = price
 
+        self._data_path=data_path
+        self._file_name_underlying=file_name_underlying
+
     @property
     def price(self):
         self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
@@ -1597,8 +1592,16 @@ class OptionPricer:
             self._payoff, self._spots_paths = self._model._payoffs, self._model._spots
             return price
         
+        if self._model == "Dupire":
+            local_vol = DupireLocalVol(BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
+            self._model = dict_models[self._model](self._option, local_vol, self._nb_paths, self._nb_steps)
+            price = self._model.price(self._spot)
+            self._payoff, self._spots_paths = self._model._payoffs, self._model._spots
+            return price
+        
     @property
     def delta(self):
+        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
         if self._model == "Black-Scholes-Merton":
             if self._sigma is None:
                 self._sigma = BASE_SIGMA
@@ -1606,9 +1609,15 @@ class OptionPricer:
             self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
             self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.delta(self._spot)
+        
+        if self._model == "Heston":
+            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
+            delta=self._model.delta(self._spot)
+            return delta
 
     @property
     def gamma(self):
+        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
         if self._model == "Black-Scholes-Merton":
             if self._sigma is None:
                 self._sigma = BASE_SIGMA
@@ -1617,35 +1626,53 @@ class OptionPricer:
             self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.gamma(self._spot)
 
+        if self._model == "Heston":
+            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
+            gamma=self._model.gamma(self._spot)
+            return gamma
+
     @property
     def vega(self):
+        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
         if self._model == "Black-Scholes-Merton":
             if self._sigma is None:
                 self._sigma = BASE_SIGMA
-            
-            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
             self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.vega(self._spot)
+        
+        if self._model == "Heston":
+            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
+            vega=self._model.vega(self._spot)
+            return vega
 
     @property
     def theta(self):
+        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
         if self._model == "Black-Scholes-Merton":
             if self._sigma is None:
                 self._sigma = BASE_SIGMA
             
-            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
             self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.theta(self._spot, self._rate)
 
+        if self._model == "Heston":
+            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
+            theta=self._model.theta(self._spot)
+            return theta
+
     @property
     def rho(self):
+        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
         if self._model == "Black-Scholes-Merton":
             if self._sigma is None:
                 self._sigma = BASE_SIGMA
-            
-            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
             self._model = dict_models[self._model](self._option, self._sigma)
             return self._model.rho(self._spot, self._rate)
+        
+        if self._model == "Heston":
+            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
+            gamma=self._model.rho(self._spot)
+            return gamma
 
     def implied_vol(self, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> float:
         if self._price is None:

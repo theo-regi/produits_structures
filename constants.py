@@ -167,10 +167,28 @@ N_CORES=1
 
 #__________________________Heston simulation CONSTANTS:_______________________
 #Number of paths for the simulation
-NUMBER_PATHS_H = 100
+NUMBER_PATHS_H = 10000
 
 #Number of steps for the simulation
-NB_STEPS_H=100
+NB_STEPS_H=10000
+
+#_______________________________GREEKS Constants:_______________________________
+#Method to generate Paths for the MC simulation on Heston model:
+HESTON_PATHS_METHOD = 'Euler' #Supported: 'Euler': for fewer paths / 'AES': for a more professionnal approach.
+
+#Seed to reproduce same simulation:
+SEED_SIMULATIONS = 12345 #Do put None to get real random simulations.
+
+#Number of paths for the Greeks calculation (for Heston model)
+NB_PATHS_GREEKS=1000
+
+#Number of steps for the Greeks calculation (for Heston model)
+NB_STEPS_GREEKS=1000
+
+#Constants for DELTA calculation (price change on the underlying):
+BASE_DELTA_S=0.01 #Delta for the underlying (1%)
+
+
 
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT

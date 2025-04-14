@@ -303,6 +303,17 @@ class TestPricer(unittest.TestCase):
             sigma=0.08,
             rate=0.05,
             notional=1)
+        """
+        self.pricer=OptionPricer(
+            start_date="13/03/2025",
+            end_date="16/05/2025",
+            type=OptionType.CALL,
+            model="Black-Scholes-Merton",
+            spot=209.68,
+            strike=210,
+            currency="USD",
+            sigma=0.33,
+            notional=1)"""
 
     def test_price(self):
         # Example test case for price calculation
@@ -351,23 +362,68 @@ class TestHestonPricing(unittest.TestCase):
             params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
             
             self.pricer=OptionPricer(
-            start_date="13/03/2025",
-            end_date="16/05/2025",
-            type=OptionType.CALL,
-            model="Heston",
-            spot=209.68,
-            strike=210,
-            currency="USD",
-            notional=1,
-            model_parameters=params,
-            nb_paths=1000,
-            nb_steps=1000)
+                start_date="13/03/2025",
+                end_date="16/05/2025",
+                type=OptionType.CALL,
+                model="Heston",
+                spot=209.68,
+                strike=210,
+                currency="USD",
+                notional=1,
+                model_parameters=params,
+                nb_paths=1000,
+                nb_steps=1000)
 
     def test_price_payoffs(self):
         price = self.pricer.price
         payoffs, spots =self.pricer._payoff, self.pricer._spots_paths
-        #plt.scatter(spots, payoffs, label='Call Payoff', s=10)
-        #plt.show()
+        plt.scatter(spots, payoffs, label='Call Payoff', s=10)
+        plt.show()
+        self.assertAlmostEqual(price, 12.17, places=1)
+        self.assertEqual(isinstance(payoffs, list), True)
+
+    def test_delta(self):
+        delta = self.pricer.delta
+        print(delta)
+        self.assertAlmostEqual(delta, 0.6, places=1)
+
+    def test_gamma(self):
+        gamma = self.pricer.gamma
+        self.assertAlmostEqual(gamma, 0.0081, places=1)
+
+    def test_vega(self):
+        vega = self.pricer.vega
+        self.assertAlmostEqual(vega, 3.5, places=1)
+
+    def test_theta(self):
+        theta = self.pricer.theta
+        self.assertAlmostEqual(theta, -54.07, places=1)
+    
+    def test_rho(self):
+        rho = self.pricer.rho
+        self.assertAlmostEqual(rho, 17.17, places=1)
+
+class TestDupireDiffusion(unittest.TestCase):
+    def setUp(self):
+        self.pricer=OptionPricer(
+            start_date="13/03/2025",
+            end_date="16/05/2025",
+            type=OptionType.CALL,
+            model="Dupire",
+            spot=209.68,
+            strike=210,
+            currency="USD",
+            notional=1,
+            data_path="data/options.csv",
+            file_name_underlying="data/underlying_prices.csv",
+            nb_paths=1000,
+            nb_steps=1000)
+
+    def test_price(self):
+        price = self.pricer.price
+        payoffs, spots =self.pricer._payoff, self.pricer._spots_paths
+        plt.scatter(spots, payoffs, label='Call Payoff', s=10)
+        plt.show()
         self.assertAlmostEqual(price, 12.17, places=1)
         self.assertEqual(isinstance(payoffs, list), True)
 

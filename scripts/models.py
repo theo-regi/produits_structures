@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import norm
-from constants import OptionType, NUMBER_PATHS_H, NB_STEPS_H
-
+from constants import OptionType, NUMBER_PATHS_H, NB_STEPS_H, BASE_DELTA_S, HESTON_PATHS_METHOD, SEED_SIMULATIONS
+from datetime import datetime, timedelta
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différents models diffusion/pricing------------
 #-------------------------------------------------------------------------------------------------------
@@ -102,76 +102,140 @@ class Heston:
     Input:
     - 
     """
-    def __init__(self, option, params:dict, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H) -> None:
+    def __init__(self, option, params:dict, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H, paths_method:float=HESTON_PATHS_METHOD) -> None:
+        self._paths_method=paths_method
         self._nb_paths=nb_paths
         self._nb_steps=nb_steps
         self._option=option
+        self._params=params
         self._v0,self._kappa,self._theta,self._eta,self._rho,=list(params.values())
 
         self._payoffs=[]
         self._spots=[]
+        self._price=None
         pass
 
-    def price(self,spot:float):
+    def price(self,spot:float)->float:
         """
         Calculate the price of the given option.
         """
         self.calculate_pay_offs(spot)
-        return np.exp(-self._option._rate*self._option.T) * np.mean(self._payoffs)
+        price=np.exp(-self._option._rate*self._option.T) * np.mean(self._payoffs)
+        if self._price is None:
+            self._price=price
+        return price
 
-    def delta(self, spot:float) -> float:
+    def delta(self, spot:float, delta_p:float=BASE_DELTA_S) -> float:
         """
         Calculate Delta of the given option.
         """
-        pass
+        if self._price is not None:
+            price=self._price
+        else:
+            price=self.price(spot)
 
-    def gamma(self, spot:float) -> float:
+        spot_prime=spot*(1+delta_p)
+        price_prime=self.price(spot_prime)
+        return (price_prime-price)/(spot_prime-spot)
+
+    def gamma(self, spot:float, delta_p:float=BASE_DELTA_S) -> float:
         """
         Calculate Gamma of the given option.
         """
-        pass
+        if self._price is not None:
+            price=self._price
+        else:
+            price=self.price(spot)
+
+        spot_up=spot*(1+delta_p)
+        spot_down=spot*(1-delta_p)
+
+        price_up=self.price(spot_up)
+        price_down=self.price(spot_down)
+        return (price_up+price_down-2*price)/((spot_up-spot)**2)
 
     def vega(self, spot:float) -> float:
         """
         Calculate Vega of the given option.
         """
-        pass
+        if self._price is not None:
+            price=self._price
+        else:
+            price=self.price(spot)
+
+        new_model = self.__deep_copy__()
+        new_model._params['v0']+=0.01
+        new_model.__init__(new_model._option, new_model._params, new_model._nb_paths, new_model._nb_steps)
+        price_prime = new_model.price(spot)
+        return (price_prime-price)/np.sqrt(0.01)
 
     def theta(self, spot:float, rate:float=None) -> float:
         """
         Calculate Theta of the given option, in case of using the option rate for the dividend, give a risk free rate.
         """
-        pass
+        if self._price is not None:
+            price=self._price
+        else:
+            price=self.price(spot)
+
+        new_option = self._option.__deep_copy__()
+        date_obj = datetime.strptime(new_option._end_date, new_option._format)
+        date_obj -= timedelta(days=1)
+        new_date = date_obj.strftime(new_option._format)
+        new_option._end_date=new_date
+        new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._price)
+        
+        new_model = self.__deep_copy__()
+        new_model._option=new_option
+        new_model.__init__(new_model._option, new_model._params, new_model._nb_paths, new_model._nb_steps)
+
+        dt = self._option.T - new_model._option.T
+        new_price = new_model.price(spot)
+        return (new_price-price)/dt
         
     def rho(self, spot:float, rate:float=None) -> float:
         """
         Calculate Rho of the given option, in case of using the option rate for the dividend, give a risk free rate.
         """
-        pass
+        if self._price is not None:
+            price=self._price
+        else:
+            price=self.price(spot)
 
-    def calculate_pay_offs(self, spot:float) -> list:
+        if rate is None:
+            rate = self._option._rate+0.01
+
+        new_model = self.__deep_copy__()
+        new_model._option._rate=rate
+
+        price_prime = new_model.price(spot)
+        return (price_prime-price)/(rate-self._option._rate)
+
+    def calculate_pay_offs(self, spot:float) -> None:
         """
         Computes the pay_off of the given option.
 
         Input: Spot price of the underlying asset.
         """
-        paths=self._generate_paths(spot)
+        if self._paths_method == 'Euler':
+            paths=self._generate_paths_Euler(spot)
+        elif self._paths_method == 'AES':
+            paths=self._generate_paths_AES(spot)
         self._spots=paths['Spots'][:,-1]
 
-        if self._option._type == OptionType.CALL:
-            self._payoffs=np.maximum(self._spots-self._option._strike, 0.0)
-            pass
-        elif self._option._type == OptionType.PUT:
-            self._payoffs=np.maximum(self._option._strike-self._spots, 0.0)
-            pass
-        else:
-            ValueError("Option type not supported !")
-            pass
+        payoffs=[]
+        for spot in self._spots:
+            payoffs.append(self._option.payoff(spot))
+        self._payoffs=payoffs
+        pass
 
-    def _generate_paths(self, spot:float) -> np.ndarray:
+    def _generate_paths_AES(self, spot:float, seed:float=SEED_SIMULATIONS) -> np.ndarray:
         """
         Generate paths for the Heston model using the AES method.
         """
+        if seed is not None:
+            np.random.seed(seed)
+
         def CIR_Sample(nb_paths,kappa,eta,theta,s,t,v_s):
             delta = 4.0 *kappa*theta/eta/eta
             c= 1.0/(4.0*kappa)*eta*eta*(1.0-np.exp(-kappa*(t-s)))
@@ -191,7 +255,7 @@ class Heston:
 
         for i in range(0, self._nb_steps):
             if self._nb_paths > 1:
-                z1[:,i] * (z1[:,i] - np.mean(z1[:,i]))/np.std(z1[:,i])
+                z1[:,i] = (z1[:,i] - np.mean(z1[:,i]))/np.std(z1[:,i])
             w1[:,i+1]=w1[:,i]+np.power(dt,0.5)*z1[:,i]
 
             v[:,i+1]=CIR_Sample(self._nb_paths, self._kappa, self._eta, self._theta, 0, dt, v[:,i])
@@ -204,3 +268,144 @@ class Heston:
         sts = np.exp(s)
         paths = {"time":t, "Spots": sts}
         return paths
+
+    def _generate_paths_Euler(self, spot:float, seed:float=SEED_SIMULATIONS) -> np.ndarray:
+        """
+        Generate paths for the Heston model with Euler method (more convergence in price with reduced number of paths.)
+        """
+        if seed is not None:
+            np.random.seed(seed)
+
+        z1 = np.random.normal(0,1,size=(self._nb_paths, self._nb_steps))
+        z2 = np.random.normal(0,1,size=(self._nb_paths, self._nb_steps))
+        w1 = np.zeros((self._nb_paths, self._nb_steps+1))
+        w2 = np.zeros((self._nb_paths, self._nb_steps+1))
+        v = np.zeros((self._nb_paths, self._nb_steps+1))
+        s = np.zeros((self._nb_paths, self._nb_steps+1))
+
+        v[:,0] = self._v0
+        s[:,0] = np.log(spot)
+
+        t=np.zeros((self._nb_steps+1))
+        dt = self._option.T/self._nb_steps
+
+        for i in range(0, self._nb_steps):
+            if self._nb_paths > 1:
+                z1[:,i] = (z1[:,i] - np.mean(z1[:,i]))/np.std(z1[:,i])
+                z2[:,i] = (z2[:,i] - np.mean(z2[:,i]))/np.std(z2[:,i])
+            z2[:,i] = self._rho * z1[:,i] + np.sqrt(1.0-self._rho**2)*z2[:,i]
+            w1[:,i+1]=w1[:,i]+np.power(dt,0.5)*z1[:,i]
+            w2[:,i+1]=w2[:,i]+np.power(dt,0.5)*z2[:,i]
+
+            v[:,i+1]=v[:,i]+self._kappa*(self._theta-v[:,i])*dt + self._eta*np.sqrt(v[:,i])*(w1[:,i+1]-w1[:,i])
+            v[:,i+1]=np.maximum(v[:,i+1],0.0)
+
+            s[:,i+1]= s[:,i] + (self._option._rate - 0.5*v[:,i])*dt + np.sqrt(v[:,i])*(w2[:,i+1]-w2[:,i])
+            t[i+1]=t[i]+dt
+        
+        sts = np.exp(s)
+        paths = {"time":t, "Spots": sts}
+        return paths
+
+    def __deep_copy__(self):
+        """
+        Create a deep copy of the Heston model.
+        """
+        new_option = self._option.__deep_copy__()
+        return Heston(new_option, self._params, self._nb_paths, self._nb_steps)
+    
+class Dupire:
+    """
+    Dupire Local Volatility Model for Monte Carlo pricing.
+    Requires a precomputed local volatility surface: sigma_loc(K, T)
+    """
+    def __init__(self, option, local_vol_surface_dupire, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H) -> None:
+        """
+        Parameters:
+        - option: option object with standard fields (_strike, _rate, T, etc.)
+        - local_vol_surface: callable or 2D interpolation of sigma_loc(K, T)
+        - nb_paths: number of Monte Carlo paths
+        - nb_steps: number of time steps
+        """
+        self._option=option
+        self._local_vol=local_vol_surface_dupire
+        self._first_date=list(self._local_vol._maturities_t.values())[0]
+        #print(list(self._local_vol._maturities_t.values())[-1])
+        self._nb_paths=nb_paths
+        self._nb_steps=nb_steps
+
+        self._payoffs=[]
+        self._spots=[]
+        self._price=None
+        pass
+
+    def _generate_paths(self, spot:float, seed:float=SEED_SIMULATIONS) -> np.ndarray:
+        if seed is not None:
+            np.random.seed(seed)
+        
+        z = np.random.normal(0, 1, size=(self._nb_paths, self._nb_steps))
+        s = np.zeros((self._nb_paths, self._nb_steps+1))
+        s[:,0]=np.log(spot)
+
+        t=np.zeros((self._nb_steps+1))
+        dt = self._option.T/self._nb_steps
+
+        for i in range(0,self._nb_steps):
+            check = False
+            if self._nb_paths>1:
+                z[:,i] = (z[:,i] - np.mean(z[:,i]))/np.std(z[:,i])
+            effective_t = max(float(t[i]), (float(self._first_date)+0.0000001))
+            vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike)
+            count = 0
+            while check == False and count < 100:
+                count += 1
+                if vol_loc is None:
+                    vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike)
+                else:
+                    check = True
+
+            s[:,i+1]=s[:,i] + (self._option._rate - 0.5*vol_loc**2) * dt + vol_loc * z[:,i] * np.sqrt(dt)          
+            t[i+1]=t[i]+dt
+
+        sts=np.exp(s)
+        paths = {"time":t, "Spots": sts}
+        return paths
+
+    def _calculate_payoffs(self, spot) -> None:
+        """
+        Compute pay_offs of the given option.
+        """
+        paths = self._generate_paths(spot)
+        self._spots = paths['Spots'][:, -1]
+
+        payoffs=[]
+        for spot in self._spots:
+            payoffs.append(self._option.payoff(spot))
+        self._payoffs=payoffs
+        pass
+
+    def price(self, spot)->float:
+        self._calculate_payoffs(spot)
+        price=np.exp(-self._option._rate*self._option.T) * np.mean(self._payoffs)
+        if self._price is None:
+            self._price=price
+        return price
+
+    def delta(self, spot, delta_p=BASE_DELTA_S):
+        price = self.price(spot)
+        price_up = self.price(spot * (1 + delta_p))
+        return (price_up - price) / (spot * delta_p)
+
+    def gamma(self, spot, delta_p=BASE_DELTA_S):
+        price = self.price(spot)
+        price_up = self.price(spot * (1 + delta_p))
+        price_down = self.price(spot * (1 - delta_p))
+        return (price_up + price_down - 2 * price) / ((spot * delta_p) ** 2)
+
+    def __deep_copy__(self):
+        """
+        Create a deep copy of the Heston model.
+        """
+        new_option = self._option.__deep_copy__()
+        return Dupire(new_option, self._local_vol, self._nb_paths, self._nb_steps)
+    
