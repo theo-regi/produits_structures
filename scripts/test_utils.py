@@ -219,6 +219,30 @@ class TestRatesCurve(unittest.TestCase):
         col2 = shifted_rates['Forward_rate'].to_list()
         self.assertTrue(any(a != b for a, b in zip(col1, col2)))
 
+    def test_vasicek(self):
+        curve = Rates_curve(self.path_rate, self.flat_rate)
+        liste = [
+            0.25, 0.5, 0.75,
+            1.0, 1.25, 1.5, 1.75,
+            2.0, 2.25, 2.5, 2.75,
+            3.0, 3.25, 3.5, 3.75,
+            4.0, 4.25, 4.5, 4.75,
+            5.0, 5.25, 5.5, 5.75,
+            6.0, 6.25, 6.5, 6.75,
+            7.0, 7.25, 7.5, 7.75,
+            8.0, 8.25, 8.5, 8.75,
+            9.0, 9.25, 9.5, 9.75,
+            10.0
+        ]
+        liste = [round(x, 6) for x in liste]
+        curve.create_product_rate_curve(liste,'Quadratic')
+
+        vasicek_curve = curve.return_data_frame()
+        print(vasicek_curve)
+        k, theta = curve.Vasicek_volatility(vasicek_curve,100)
+        #vasicek_cruve.Vasicek_volatility(liste, 'Nelson-Siegel')
+        #vasicek_curve.Vasicek_volatility(liste, 'Nelson-Siegel')
+
 class TestImpliedVolatilityFinder(unittest.TestCase):
     def setUp(self):
         """Set up test cases with different parameters."""

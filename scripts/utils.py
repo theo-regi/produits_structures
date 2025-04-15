@@ -7,6 +7,8 @@ import holidays
 import pandas as pd
 import numpy as np
 from scipy.optimize import fsolve, minimize
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
 
 from functions import optimize_nelson_siegel,nelson_siegel
 #-------------------------------------------------------------------------------------------------------
@@ -348,6 +350,88 @@ class Rates_curve:
     
     def return_data_frame(self):
         return self.__data_rate
+
+    def Vasicek_volatility(self,curve_df,n_simulations) -> pd.DataFrame:
+        """
+        Fonction pour calculer la volatilité de la courbe de taux selon le modèle de Vasicek.
+        """
+        np.random.seed(123456)  # pour reproductibilité
+
+        # Préparation des données
+        r_t = curve_df["Rate"].values[:-1] / 100  # convertir en proportion
+        r_t_dt = curve_df["Rate"].values[1:] / 100
+        delta_t = np.diff(curve_df["Year_fraction"].values)
+
+        # Régression linéaire pour estimer alpha et beta
+        X = r_t.reshape(-1, 1)
+        y = r_t_dt - r_t
+        model = LinearRegression().fit(X, y)
+        alpha = model.coef_[0]
+        beta = model.intercept_
+
+        # Estimation de k et theta
+        a_value=[]
+        for rates in curve_df["Rate"]:
+            a = (1 - (alpha/rates)) / delta_t[0]  # Assumant delta_t constant
+        a_mean = np.mean(a_value)
+        k = beta / (a * delta_t[0])
+
+        # Courbe attendue selon la régression linéaire :
+        r_t_full = curve_df["Rate"].values 
+        expected_path = alpha * r_t_full + beta
+        curve_df["Vasicek_expected"] = expected_path * 100
+
+        curve_df["Residual"] = curve_df["Rate"] - curve_df["Vasicek_expected"]
+        curve_df["Residual"] = curve_df["Residual"] - a*(k-curve_df["Rate"])*delta_t[0]
+        
+        t = curve_df["Year_fraction"].values
+        n_steps = len(t)
+        simulations = []
+
+        sigma_value=[]
+        for residual in curve_df["Residual"]:
+            # Estimation de la volatilité empirique à partir des résidus
+            sigma = residual/(np.sqrt(delta_t[0])*np.random.normal(0, 1))
+            sigma_value.append(sigma)
+        print(np.average(sigma_value))
+        
+        '''dt=delta_t[0]
+        # Initialisation de sigma
+        sigma = 0.01  # Valeur initiale arbitraire
+        for sim in range(n_simulations):
+                r_sim = [r_t[0]]  # Commencer avec le premier taux converti en proportion
+                for i in range(1, n_steps):
+                    r_prev = r_sim[-1]
+                    dW_t = np.random.normal(0, 1) * np.sqrt(dt)  # Incrément de Wiener
+                    r_next = r_prev + a * (k - r_prev) * dt + sigma * dW_t
+                    r_sim.append(r_next)
+
+                # Mise à jour de sigma après chaque simulation
+                residuals = np.array(r_sim[1:]) - (a * (k - np.array(r_sim[:-1])) * delta_t + sigma * np.sqrt(delta_t) * np.random.normal(0, 1, size=len(r_sim)-1))
+                sigma = np.std(residuals)
+
+                simulations.append(np.array(r_sim) * 100)
+
+        simulations_array = np.array(simulations)  # (n_simulations, n_steps)
+
+        # Estimation de la volatilité à partir des simulations
+        vol_empirique_par_t = np.std(simulations_array, axis=0)  # shape = (n_steps,)
+        sigma_empirique = np.mean(vol_empirique_par_t) / 100  # en proportion'''
+
+        # Tracé du graphique
+        plt.figure(figsize=(10, 6))
+        plt.plot(t, curve_df["Rate"], label="Courbe Observée", marker="o", color="black")
+        plt.plot(t, curve_df["Vasicek_expected"], label="Espérance Vasicek", linestyle="--", color="blue")
+
+        plt.xlabel("Échéance (années)")
+        plt.ylabel("Taux (%)")
+        plt.title("Modèle de Vasicek - Courbe Observée, Espérance et Simulations")
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+        return k, theta
 
 #Classe de recherche de la volatilité implicite
 class ImpliedVolatilityFinder:
