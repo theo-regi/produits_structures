@@ -330,6 +330,7 @@ class Dupire:
         self._option=option
         self._local_vol=local_vol_surface_dupire
         self._first_date=list(self._local_vol._maturities_t.values())[0]
+        self._first_strike=list(self._local_vol._strikes_supported)[1]
         self._nb_paths=nb_paths
         self._nb_steps=nb_steps
 
@@ -342,7 +343,6 @@ class Dupire:
         """
         Generate paths for the Dupire model using the local volatility surface.
         """
-
         if seed is not None:
             np.random.seed(seed)
         
@@ -358,15 +358,15 @@ class Dupire:
             if self._nb_paths>1:
                 z[:,i] = (z[:,i] - np.mean(z[:,i]))/np.std(z[:,i])
             effective_t = max(float(t[i]), (float(self._first_date)+0.0000001))
-            vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike) + spread_vol
+            effective_k = max(float(self._option._strike), float(self._first_strike))
+            vol_loc = self._local_vol.get_local_implied_vol(effective_t, effective_k) + spread_vol
             count = 0
             while check == False and count < 1000:
                 count += 1
                 if vol_loc is None:
-                    vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike) + spread_vol
+                    vol_loc = self._local_vol.get_local_implied_vol(effective_t, effective_k) + spread_vol
                 else:
                     check = True
-
             s[:,i+1]=s[:,i] + (self._option._rate - 0.5*vol_loc**2) * dt + vol_loc * z[:,i] * np.sqrt(dt)          
             t[i+1]=t[i]+dt
 
