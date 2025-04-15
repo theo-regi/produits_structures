@@ -1,11 +1,11 @@
-from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, \
+from constants import OptionType, BarrierType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, \
     BASE_DIV_RATE, BOUNDS_MONEYNESS, OTM_CALIBRATION, VOLUME_CALIBRATION, VOLUME_THRESHOLD, \
     INITIAL_SSVI, SSVI_METHOD, OPTIONS_SOLVER_SSVI,BASE_NOTIONAL, CONVENTION_DAY_COUNT, \
     ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT,BASE_MODEL,\
     BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K, \
     BASE_CALIBRATION_HESTON, BASE_MAX_T, BASE_T_INTERVAL, INITIAL_HESTON, HESTON_BOUNDS,\
     HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES, NUMBER_PATHS_H,\
-    NB_STEPS_H, NB_PATHS_GREEKS, NB_STEPS_GREEKS, get_from_cache, set_in_cache
+    NB_STEPS_H, FILE_PATH, FILE_UNDERLYING, get_from_cache, set_in_cache
 
 from joblib import Parallel, delayed
 from functools import lru_cache
@@ -833,20 +833,102 @@ class VanillaOption(EQDProduct):
     def __deep_copy__(self):
         return VanillaOption(self._start_date, self._end_date, self._type, self._strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
 
+#Class for barriers options
 class BarrierOption(EQDProduct):
     """
     Class for Barrier Option.
 
     Input:
     -Type (Enum, optional) (call / put)
+    -Barrier type (Enum, non optional)
     -Spot (float, optional)
     -Strike (float, optional)
+    -Barrier Strike (float, optional)
     -Rate (float, optional)
 
     -date format (string, optional)
     -currency (string, optional)
-    
+    -start date (string, optional)
+    -end date (string, optional) / options dates
+    -day count convention (string, optional, equal to 30/360 if not provided)
+    -rolling convention (string, optional, equal to Modified Following if not provided)
+    -notional (float, optional, will quote in percent if not provided) / nb underlying shares / equities
     """
+
+    def __init__(self, start_date:str, end_date:str, type:str=BarrierType.CALL_UP_OUT,\
+                 strike:float=BASE_STRIKE, barrier_strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT,\
+                 rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE,\
+                 currency:str=BASE_CURRENCY, div_rate:str=BASE_DIV_RATE, price:float=None, volume:float=None) -> None:
+        
+        super().__init__(start_date, end_date, type, strike, rate, day_count, rolling_conv, notional, format_date, currency, price)
+        self._div_rate=div_rate
+        self._volume=volume
+        self._barrier_strike=barrier_strike
+        pass
+
+    def npv(self, spot):
+        """
+        Calculate the NPV of the equity derivative product.
+        """
+        return self.payoff(spot) * self._notional * np.exp(-self._rate * self.T)
+    
+    def payoff(self, spot):
+        """
+        Calculate the payoff of the equity derivative product.
+        """
+        if self._type == BarrierType.CALL_UP_IN:
+            if spot > self._barrier_strike:
+                return max(spot - self._strike, 0)
+            else:
+                return 0
+            
+        elif self._type == BarrierType.CALL_UP_OUT:
+            if spot < self._barrier_strike:
+                return max(spot - self._strike, 0)
+            else:
+                return 0
+
+        elif self._type == BarrierType.CALL_DOWN_IN:
+            if spot < self._barrier_strike:
+                return max(spot - self._strike, 0)
+            else:
+                return 0
+        
+        elif self._type == BarrierType.CALL_DOWN_OUT:
+            if spot > self._barrier_strike:
+                return max(spot - self._strike, 0)
+            else:
+                return 0
+
+        elif self._type == BarrierType.PUT_UP_IN:
+            if spot > self._barrier_strike:
+                return max(self._strike - spot, 0)
+            else:
+                return 0
+
+        elif self._type == BarrierType.PUT_UP_OUT:
+            if spot < self._barrier_strike:
+                return max(self._strike - spot, 0)
+            else:
+                return 0
+
+        elif self._type == BarrierType.PUT_DOWN_IN:
+            if spot < self._barrier_strike:
+                return max(self._strike - spot, 0)
+            else:
+                return 0
+        
+        elif self._type == BarrierType.PUT_DOWN_OUT:
+            if spot > self._barrier_strike:
+                return max(self._strike - spot, 0)
+            else:
+                return 0
+        else:
+            ValueError("Barrier type not recognized !")
+            pass
+
+    def __deep_copy__(self):
+        return BarrierOption(self._start_date, self._end_date, self._type, self._barrier_type, self._strike, self._barrier_strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
 
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
@@ -939,13 +1021,13 @@ class OptionMarket:
             for _, row in df.iterrows():
                 option_type = row['type'].lower()
                 if option_type == "call":
-                    t = 1
+                    t = OptionType.CALL
                 elif option_type == "put":
-                    t = -1
+                    t = OptionType.PUT
                 else:
                     print(f"Invalid Option type: {option_type}")
 
-                option = VanillaOption(row['price_date'], row['expiration'], OptionType(t), row['strike'], price=row['last'], volume=row['volume'])
+                option = VanillaOption(row['price_date'], row['expiration'], t, row['strike'], price=row['last'], volume=row['volume'])
                 options_matrix[row['expiration']][option_type].append(option)
             
             matrices[date]=options_matrix
@@ -1276,6 +1358,7 @@ class DupireLocalVol:
         self._limits_K = limits_K
 
         self._maturities_t = {}
+        self._strikes_supported = []
         self._options_for_calibration = None
         self._params = self._params_svis
         self._implied_vol_df = self._build_implied_vol_matrix()
@@ -1326,6 +1409,7 @@ class DupireLocalVol:
             row = pd.Series(data=vols, index=vector_K, name=self._maturities_t[self._maturities[t]])
             iv_df = pd.concat([iv_df, row.to_frame().T], axis=0)
 
+        self._strikes_supported=list(iv_df.columns)
         return iv_df
 
     def get_implied_vol_matrix(self):
@@ -1370,11 +1454,11 @@ class DupireLocalVol:
 
         numerator=s2_IMP + 2 * s_IMP * maturity * (d_sigma_T + (self._rate - self._div_rate) * strike * d_sigma_K)
         denominator=((1+strike*d_sigma_K*np.sqrt(maturity))**2) + (s_IMP*(strike**2)*maturity)*(d_sigma2_K-self._div_rate*(d_sigma_K**2)*np.sqrt(maturity))
-        """
-        In denominator: ((1+strike*self._div_rate*d_sigma_K*np.sqrt(maturity))**2) have a div_rate = 0 in my test, which is making first part =0.
-        In the slides: there is this *q in first part of the denominator. Looking at some papers/quant stack exchange, looks like there is no *q in first part.
-        """
-        return np.sqrt(numerator/denominator)
+
+        res = np.sqrt(numerator/denominator)
+        if np.isnan(res):
+            res = sigma_K_T1
+        return res
 
     def get_closest_maturities(self, maturity:float)->list:
         """
@@ -1390,18 +1474,17 @@ class DupireLocalVol:
                 upper_mat = maturities[i]
         return under_mat, upper_mat
     
-    def get_closest_strikes(self, strike:float)->float:
+    def get_closest_strikes(self, strike: float):
         """
-        Get the 2 closest strikes for a given strike.
+        Return the closest strike below and above the given strike.
+        Assumes self._implied_vol_df.columns is sorted.
         """
-        strikes = list(self._implied_vol_df.columns)
-        under_strike, upper_strike = strikes[0], strikes[-1]
-        for i in range(len(strikes)):
-            if strikes[i]>under_strike and strikes[i]<=strike:
-                under_strike = strikes[i]
-            if strikes[i]<upper_strike and strikes[i]>=strike:
-                upper_strike = strikes[i]
-        return under_strike, upper_strike
+        strikes = sorted(list(self._implied_vol_df.columns))
+        
+        under = max([k for k in strikes if k < strike], default=strikes[0])
+        over = min([k for k in strikes if k > strike], default=strikes[-1])
+
+        return under, over
 
 #Classe helper pour préparer/calibrer l'Heston model:
 class HestonHelper:
@@ -1594,19 +1677,21 @@ class HestonHelper:
 #-------------------------------------------------------------------------------------------------------
 #Options pricer:
 class OptionPricer:
-    def __init__(self, start_date: str, end_date: str, type: str = OptionType.CALL, model: str = BASE_MODEL,
-                 spot: float = BASE_SPOT, strike: float = BASE_STRIKE, div_rate: float = BASE_DIV_RATE,
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, barrier_type:str=None, model:str=BASE_MODEL,
+                 spot:float = None, strike: float = BASE_STRIKE, barrier_strike:float=None, div_rate: float = BASE_DIV_RATE,
                  day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
                  notional: float = BASE_NOTIONAL, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
                  sigma: float = None, rate: float = BASE_RATE, price: float = None,
                  model_parameters: dict = None, nb_paths: float = NUMBER_PATHS_H, nb_steps: float = NB_STEPS_H,
-                 data_path: str = None, file_name_underlying: str = None) -> None:
+                 data_path: str = FILE_PATH, file_name_underlying: str = FILE_UNDERLYING) -> None:
 
+        self._data_path = data_path
+        self._file_name_underlying = file_name_underlying
+        
         self._model_name = model
         self._start_date = start_date
         self._end_date = end_date
         self._type = type
-        self._spot = spot
         self._strike = strike
         self._div_rate = div_rate
         self._day_count = day_count
@@ -1616,6 +1701,14 @@ class OptionPricer:
         self._currency = currency
         self._sigma = sigma
         self._rate = rate
+        self._barrier_type = barrier_type
+        self._barrier_strike = barrier_strike
+
+        if spot is None:
+            data = pd.read_csv(self._file_name_underlying, sep=';', index_col=0)
+            data.index = pd.to_datetime(data.index)
+            spot = data.loc[pd.to_datetime(self._start_date),"4. close"]
+        self._spot = spot
 
         self._model_parameters = model_parameters
         self._nb_paths = nb_paths
@@ -1624,11 +1717,16 @@ class OptionPricer:
         self._payoff = None
         self._price = price
 
-        self._data_path = data_path
-        self._file_name_underlying = file_name_underlying
-
-        self._option = VanillaOption(start_date=start_date, end_date=end_date, type=type, strike=strike,
+        if self._type == OptionType.CALL or self._type == OptionType.PUT:
+            self._option = VanillaOption(start_date=start_date, end_date=end_date, type=type, strike=strike,
                                      notional=notional, currency=currency, div_rate=div_rate)
+            
+        elif self._type == BarrierType.CALL_DOWN_IN or self._type == BarrierType.CALL_DOWN_OUT or self._type == BarrierType.CALL_UP_IN or self._type == BarrierType.CALL_UP_OUT or self._type == BarrierType.PUT_DOWN_IN or self._type == BarrierType.PUT_DOWN_OUT or self._type == BarrierType.PUT_UP_IN or self._type == BarrierType.PUT_UP_OUT:
+            self._option = BarrierOption(start_date=start_date, end_date=end_date, type=type, strike=strike,
+                                     notional=notional, currency=currency, div_rate=div_rate,
+                                     barrier_strike=barrier_strike)
+        else:
+            ValueError(f"Option Type {self._type} not recognized !")
 
         self._local_vol_model = None
         if self._model_name == "Dupire":
@@ -1690,9 +1788,6 @@ class OptionPricer:
         self._model = self._build_model()
 
     def _greek(self, greek_name:str):
-        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type,
-                                     strike=self._strike, notional=self._notional, currency=self._currency,
-                                     div_rate=self._div_rate)
         self._update_model()
         return getattr(self._model, greek_name)(self._spot)
 
@@ -1719,9 +1814,18 @@ class OptionPricer:
 #-----------------------------------Script pour portefeuille de produits:-------------------------------
 #-------------------------------------------------------------------------------------------------------
 #We need to create / implement products here: digits / barriers / autocalls
-dict_products = {"Vanilla Option": VanillaOption,
-                 
+dict_products = {"Call": OptionType.CALL,
+                 "Put": OptionType.PUT,
+                 "Call Up and In": BarrierType.CALL_UP_IN,
+                 "Call Up and Out": BarrierType.CALL_UP_OUT,
+                 "Call Down and In": BarrierType.CALL_DOWN_IN,
+                 "Call Down and Out": BarrierType.CALL_DOWN_OUT,
+                 "Put Down and In": BarrierType.PUT_DOWN_IN,
+                 "Put Down and Out": BarrierType.PUT_DOWN_OUT,
+                 "Put Up and In": BarrierType.PUT_UP_IN,
+                 "Put Up and Out": BarrierType.PUT_UP_OUT,
                  }
+
 #Option portolio:
 class Portfolio:
     """
@@ -1729,14 +1833,36 @@ class Portfolio:
     Look at it like an interface with the front-end.
     """
     def __init__(self):
-        self._dict_product = {}
+        self._portfolio = {}
         pass
 
-    def _add_product(self, type_prodct:str):
+    def _add_product(self, type_product:str, start_date:str, end_date:str, quantity:float=1, strike:float=BASE_STRIKE, barrier_strike:float=None, model:str=BASE_MODEL, spot:float=None, div_rate:float=BASE_DIV_RATE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None):
+        """
+        Add a product to the portfolio.
+        """
+        if type_product not in dict_products or model not in dict_models:
+            raise ValueError(f"Product {type_product} or Model {model} not recognized.")
+        else:
+            key = (type_product, model, strike, start_date, end_date, barrier_strike, div_rate, rate, day_count, rolling_conv, notional, format_date, currency, sigma)
+            if key not in self._portfolio:
+                if strike<0.1:
+                    strike_effective=0.1
+                else: 
+                    strike_effective = strike
+                option_pricer = OptionPricer(start_date, end_date, type=dict_products[type_product], barrier_strike=barrier_strike, model=model, spot=spot, strike=strike_effective, div_rate=div_rate, rate=rate, day_count=day_count, rolling_conv=rolling_conv, notional=notional, format_date=format_date, currency=currency, sigma=sigma)
+                self._portfolio[key] = {'pricer': option_pricer, 'quantity': quantity}
+            else:
+                self._portfolio[key]['quantity'] += quantity
+        print("Product successfully added to portfolio!")
         pass
 
-    def _create_product(self):
-        pass
-
-    def _price_portfolio(self):
-        pass
+    def price_portfolio(self):
+        sum_npv=0
+        pay_offs=[]
+        spots=[]
+        for key, item in self._portfolio.items():
+            pricer = item['pricer']
+            sum_npv+=pricer.price*item['quantity']
+            pay_offs.extend([x * item['quantity'] for x in pricer._payoff])
+            spots.extend(pricer._spots_paths)
+        return sum_npv, pay_offs, spots

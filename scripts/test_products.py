@@ -2,9 +2,10 @@ import numpy as np
 import unittest
 from products import ZCBond, FixedLeg, FloatLeg,\
     Swap, VanillaOption, OptionMarket, SSVICalibration,\
-    OptionPricer, DupireLocalVol, HestonHelper
+    OptionPricer, DupireLocalVol, HestonHelper, Portfolio
+
 from utils import Rates_curve
-from constants import OptionType
+from constants import OptionType, BarrierType
 import matplotlib.pyplot as plt
 
 class TestZCBond(unittest.TestCase):
@@ -447,5 +448,22 @@ class TestDupireDiffusion(unittest.TestCase):
         rho = self.pricer.rho
         self.assertAlmostEqual(rho, 18.15, places=1)
     
+class TestPortfolio(unittest.TestCase):
+    def setUp(self):
+        self.ptf = Portfolio()
+        #self.ptf._add_product("Call", "13/03/2025", "16/05/2025", 1, 0.1, None, "Dupire", notional=1)
+        #self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
+
+        self.ptf._add_product("Call Up and Out", "13/03/2025", "16/05/2025", 1, 210, 240, "Dupire", notional=1)
+        self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
+        self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
+
+    def test_price_portfolio(self):
+        price, payoffs, spots = self.ptf.price_portfolio()
+        plt.scatter(spots, payoffs, label='Payoff', s=10)
+        plt.show()
+        self.assertAlmostEqual(price, 12.17, places=1)
+        self.assertEqual(isinstance(payoffs, list), True)
+
 if __name__ == "__main__":
     unittest.main()

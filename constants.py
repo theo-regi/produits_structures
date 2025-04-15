@@ -2,6 +2,12 @@ import enum
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour modifier les constantes de base de l'appli---------------------
 #-------------------------------------------------------------------------------------------------------
+#Option market file path:
+FILE_PATH="data/options.csv"
+
+#Underlying product file path:
+FILE_UNDERLYING="data/underlying_prices.csv"
+
 #_______________________________GENERAL UTILITIES CONSTANTS:_______________________________
 #Base type of interpolation for curves, will be used if not provided by the user.
 TYPE_INTERPOL = 'Quadratic' #Supported types: 'Linear', 'Quadratic', 'Nelson_Siegel', 'Flat'
@@ -179,12 +185,6 @@ HESTON_PATHS_METHOD = 'Euler' #Supported: 'Euler': for fewer paths / 'AES': for 
 #Seed to reproduce same simulation:
 SEED_SIMULATIONS = 12345 #Do put None to get real random simulations.
 
-#Number of paths for the Greeks calculation (for Heston model)
-NB_PATHS_GREEKS=1000
-
-#Number of steps for the Greeks calculation (for Heston model)
-NB_STEPS_GREEKS=1000
-
 #Constants for DELTA calculation (price change on the underlying):
 BASE_DELTA_S=0.01 #Delta for the underlying (1%)
 
@@ -194,7 +194,18 @@ BASE_DELTA_S=0.01 #Delta for the underlying (1%)
 #Enum for the type of options: CALL or PUT
 class OptionType(enum.Enum):
     CALL = 1.0
-    PUT = -1.0
+    PUT = 2.0
+
+#Enum for the type of barriers: UP_IN, UP_OUT, DOWN_IN, DOWN_OUT
+class BarrierType(enum.Enum):
+    CALL_UP_IN = 3.0
+    CALL_UP_OUT = 4.0
+    CALL_DOWN_IN = 5.0
+    CALL_DOWN_OUT = 6.0
+    PUT_UP_IN = 7.0
+    PUT_UP_OUT = 8.0
+    PUT_DOWN_IN = 9.0
+    PUT_DOWN_OUT = 10.0
 
 #_______________________________CONSTANTS FOR CACHE:___________________________
 CACHED_OBJECTS = {
