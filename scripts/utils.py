@@ -334,7 +334,6 @@ class Rates_curve:
         """
         product_year_fraction = shift.keys()
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
-        #print(type(self.curve_rate_product))
         self.__data_rate['Rate']+=self.__data_rate['Year_fraction'].map(shift)
         self.__data_rate = self.create_product_rate_curve(product_year_fraction,type_interpol)
         pass

@@ -248,8 +248,7 @@ class TestImpliedVolatilityFinder(unittest.TestCase):
         result = self.pricer.implied_vol(method='Newton-Raphson')
         self.assertAlmostEqual(result, 0.42363, places=2)
 
-
-class TestOptionMarket_SSVI_Connection(unittest.TestCase):
+class TestOptionMarket_SVI_Connection(unittest.TestCase):
     def setUp(self):
         OTM_v = True
         self.option_market = OptionMarket("data/options.csv", "data/underlying_prices.csv")

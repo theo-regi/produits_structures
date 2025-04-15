@@ -195,3 +195,26 @@ BASE_DELTA_S=0.01 #Delta for the underlying (1%)
 class OptionType(enum.Enum):
     CALL = 1.0
     PUT = -1.0
+
+#_______________________________CONSTANTS FOR CACHE:___________________________
+CACHED_OBJECTS = {
+    "DupireLocalVol": {},
+    "SSVI": {},
+    "SSVICalibration": {},
+    "HestonHelper": {},
+    "OptionMarket": {}
+}
+
+def clear_cache():
+    """Clear all cached objects."""
+    for name, cache_dict in CACHED_OBJECTS.items():
+        cache_dict.clear()
+        print(f"✅ Cleared cache for {name}")
+
+def get_from_cache(category, key):
+    return CACHED_OBJECTS.get(category, {}).get(key, None)
+
+def set_in_cache(category, key, value):
+    if category not in CACHED_OBJECTS:
+        CACHED_OBJECTS[category] = {}
+    CACHED_OBJECTS[category][key] = value

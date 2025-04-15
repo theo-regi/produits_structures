@@ -5,7 +5,7 @@ from constants import OptionType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURREN
     BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K, \
     BASE_CALIBRATION_HESTON, BASE_MAX_T, BASE_T_INTERVAL, INITIAL_HESTON, HESTON_BOUNDS,\
     HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES, NUMBER_PATHS_H,\
-    NB_STEPS_H, NB_PATHS_GREEKS, NB_STEPS_GREEKS
+    NB_STEPS_H, NB_PATHS_GREEKS, NB_STEPS_GREEKS, get_from_cache, set_in_cache
 
 from joblib import Parallel, delayed
 from functools import lru_cache
@@ -785,7 +785,7 @@ class EQDProduct(ABC):
 #Class for vanilla equities options:
 class VanillaOption(EQDProduct):
     """"
-    Abstract class for equity derivatives products.
+    Class for Vanilla Option.
 
     Input:
     -Type (Enum, optional) (call / put)
@@ -832,6 +832,21 @@ class VanillaOption(EQDProduct):
         
     def __deep_copy__(self):
         return VanillaOption(self._start_date, self._end_date, self._type, self._strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
+
+class BarrierOption(EQDProduct):
+    """
+    Class for Barrier Option.
+
+    Input:
+    -Type (Enum, optional) (call / put)
+    -Spot (float, optional)
+    -Strike (float, optional)
+    -Rate (float, optional)
+
+    -date format (string, optional)
+    -currency (string, optional)
+    
+    """
 
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
@@ -885,6 +900,13 @@ class OptionMarket:
 
         self._spot = None
         self._options_matrices = self._build_options_matrix()
+
+        key = (self._filename,self._filename_underlying)
+        cached_om = get_from_cache("OptionMarket", key)
+        if cached_om is None:
+            cached_om = self
+            set_in_cache("OptionMarket", key, cached_om)
+
         pass
 
     def _split_price_dates(self):
@@ -1036,7 +1058,15 @@ class SSVICalibration:
         self._model = model
         self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
-        self._option_market = OptionMarket(data_path, file_name_underlying)
+
+        key_om = (data_path, file_name_underlying)
+        cached_om = get_from_cache("OptionMarket", key_om)
+        if cached_om is None:
+            self._option_market = OptionMarket(data_path, file_name_underlying)
+            set_in_cache("OptionMarket", key_om, cached_om)
+        else:
+            self._option_market = cached_om
+        
         self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())
         self._moneyness_level = moneyness_level
         self._OTM_calibration = OTM_calibration
@@ -1048,15 +1078,27 @@ class SSVICalibration:
         self._currency = currency
         self._rate = rate
         self._spot = None
-
         self._options_for_calibration = None
         self._maturities_t = {}
+        self._atm_options = {}
+        self._ssvi_params = {}
+
         self._params = self._params_svis
         self._calibration_prices = np.array([option._price for option in self._options_for_calibration])
-        self._atm_options = {}
         self._atm_prices = self._reprice_ATM_options
-        self._ssvi_params = {}
+
         self.calibrate_SSVI()
+
+        key = (self._pricing_date)
+        cached_ssvi = get_from_cache("SSVICalibration", key)
+        if cached_ssvi is None:
+            cached_ssvi = self
+            set_in_cache("SSVICalibration", key, cached_ssvi)
+
+        cached_params = get_from_cache("SSVI", key)
+        if cached_params is None:
+            cached_params = self._ssvi_params
+            set_in_cache("SSVI", key, cached_params)
 
     @property
     def _params_svis(self)->dict:
@@ -1187,6 +1229,7 @@ class SSVICalibration:
     def get_ssvi_params(self):
         return self._ssvi_params
     
+    @lru_cache(maxsize=1000)
     def __call__(self, K, t):
         """
         Return implied volatility σ(K, t)
@@ -1214,7 +1257,13 @@ class DupireLocalVol:
         self._model = model
         self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
-        self._option_market = OptionMarket(data_path, file_name_underlying)
+        key = (data_path,file_name_underlying)
+        cached_om = get_from_cache("OptionMarket", key)
+        if cached_om is None:
+            cached_om = OptionMarket(data_path, file_name_underlying)
+            set_in_cache("OptionMarket", key, cached_om)
+        
+        self._option_market = cached_om
         self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())[:-1]
         self._moneyness_level = moneyness_level
         self._OTM_calibration = OTM_calibration
@@ -1282,6 +1331,7 @@ class DupireLocalVol:
     def get_implied_vol_matrix(self):
         return self._implied_vol_df
 
+    @lru_cache(maxsize=1000)
     def get_local_implied_vol(self, maturity:float, strike:float) -> float:
         """
         Get the local implied vol for a given maturity and strike, from Dupire Formula.
@@ -1403,27 +1453,47 @@ class HestonHelper:
 
         self._results_heston=None
 
-        if self._type_calibration=="SSVI":
-            ssvi_calibrator=SSVICalibration(model=self._model, data_path=self._data_path, file_name_underlying=self._file_name_underlying, pricing_date=self._pricing_date, moneyness_level=self._moneyness_level, OTM_calibration=self._OTM_calibration, div_rate=self._div_rate, currency=self._currency, rate=self._rate)
-            self._spot=ssvi_calibrator.get_spot_SSVI()
-            self._options_for_calibration=ssvi_calibrator._options_for_calibration
-            self._options_for_calibration=self._options_for_calibration[:int(len(self._options_for_calibration)*CUTOFF_H)]
-            self._ssvi_function=ssvi_calibrator.__call__
-            self._results_heston=self._calibrate_on_ssvi()
-        elif self._type_calibration=="Market":
-            options = []
-            option_market=OptionMarket(self._data_path, self._file_name_underlying)
-            for maturity in list(option_market._options_matrices[self._pricing_date].keys()):
-                self._spot, opt=option_market.get_values_for_calibration_Heston(self._pricing_date, maturity, self._moneyness_level, self._OTM_calibration)
-                options.extend(opt)
-            self._options_for_calibration=options
-            self._results_heston=self._calibrate_on_market()
+        key = (self._data_path,self._file_name_underlying, self._pricing_date)
+        cached_params = get_from_cache("HestonHelper", key)
+        if cached_params is None:
+            if self._type_calibration=="SSVI":
+                key_ssvi = (self._pricing_date)
+                cached_calibrator = get_from_cache("SSVICalibrator", key_ssvi)
+                if cached_calibrator is None:
+                    ssvi_calibrator=SSVICalibration(model=self._model, data_path=self._data_path, file_name_underlying=self._file_name_underlying, pricing_date=self._pricing_date, moneyness_level=self._moneyness_level, OTM_calibration=self._OTM_calibration, div_rate=self._div_rate, currency=self._currency, rate=self._rate)
+                else:
+                    ssvi_calibrator = cached_calibrator
+
+                self._spot=ssvi_calibrator.get_spot_SSVI()
+                self._options_for_calibration=ssvi_calibrator._options_for_calibration
+                self._options_for_calibration=self._options_for_calibration[:int(len(self._options_for_calibration)*CUTOFF_H)]
+                self._ssvi_function=ssvi_calibrator.__call__
+                self._results_heston=self._calibrate_on_ssvi()
+            elif self._type_calibration=="Market":
+                options = []
+                
+                key_om = (self._data_path, self._file_name_underlying)
+                cached_om = get_from_cache("OptionMarket", key_om)
+                if cached_om is None:
+                    option_market=OptionMarket(self._data_path, self._file_name_underlying)
+                else:
+                    option_market = cached_om
+                
+                for maturity in list(option_market._options_matrices[self._pricing_date].keys()):
+                    self._spot, opt=option_market.get_values_for_calibration_Heston(self._pricing_date, maturity, self._moneyness_level, self._OTM_calibration)
+                    options.extend(opt)
+                self._options_for_calibration=options
+                self._results_heston=self._calibrate_on_market()
+            else:
+                print("Calibration type not recognized ! Please choose: Market or SSVI")
+                pass
+            set_in_cache(HestonHelper, key, self._results_heston)
         else:
-            print("Calibration type not recognized ! Please choose: Market or SSVI")
-            pass
+            self._results_heston = cached_params
+        
         pass
 
-    @lru_cache(maxsize=512)
+    @lru_cache(maxsize=1000)
     def _CFHeston(self, r, tau, kappa, eta, theta, v0, rho):
         """
         Heston characteristic function.
@@ -1522,33 +1592,17 @@ class HestonHelper:
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différentes classes prices---------------------
 #-------------------------------------------------------------------------------------------------------
-
 #Options pricer:
 class OptionPricer:
-    """
-    Class for pricing options using different models.
+    def __init__(self, start_date: str, end_date: str, type: str = OptionType.CALL, model: str = BASE_MODEL,
+                 spot: float = BASE_SPOT, strike: float = BASE_STRIKE, div_rate: float = BASE_DIV_RATE,
+                 day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
+                 notional: float = BASE_NOTIONAL, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
+                 sigma: float = None, rate: float = BASE_RATE, price: float = None,
+                 model_parameters: dict = None, nb_paths: float = NUMBER_PATHS_H, nb_steps: float = NB_STEPS_H,
+                 data_path: str = None, file_name_underlying: str = None) -> None:
 
-    Input:
-    - start_date: Start date of the option in the format.
-    - end_date: End date of the option in the format.
-    - type: Type of the option (CALL or PUT).
-    - model: Model used for pricing (optional).
-    - spot: Spot price of the underlying asset (optional).
-    - strike: Strike price of the option (optional).
-    - div_rate: Dividend rate (optional).
-    - day_count: Day count convention (optional).
-    - rolling_conv: Rolling convention (optional).
-    - notional: Notional amount (optional).
-    - format_date: Date format (optional).
-    - currency: Currency of the option (optional).
-    - sigma: Implied volatility (optional).
-    - rate: Risk-free interest rate (optional).
-    """
-    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, model:str=BASE_MODEL, spot:float=BASE_SPOT, strike:float=BASE_STRIKE,\
-                 div_rate:float=BASE_DIV_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL,\
-                 format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None, rate:float=BASE_RATE, price:float=None,\
-                 model_parameters:dict=None, nb_paths:float=NUMBER_PATHS_H, nb_steps:float=NB_STEPS_H, data_path:str=None, file_name_underlying:str=None) -> None:
-        self._model = model
+        self._model_name = model
         self._start_date = start_date
         self._end_date = end_date
         self._type = type
@@ -1563,140 +1617,126 @@ class OptionPricer:
         self._sigma = sigma
         self._rate = rate
 
-        self._model_parameters=model_parameters
-        self._nb_paths=nb_paths
-        self._nb_steps=nb_steps
+        self._model_parameters = model_parameters
+        self._nb_paths = nb_paths
+        self._nb_steps = nb_steps
         self._spots_paths = None
-
         self._payoff = None
         self._price = price
 
-        self._data_path=data_path
-        self._file_name_underlying=file_name_underlying
+        self._data_path = data_path
+        self._file_name_underlying = file_name_underlying
+
+        self._option = VanillaOption(start_date=start_date, end_date=end_date, type=type, strike=strike,
+                                     notional=notional, currency=currency, div_rate=div_rate)
+
+        self._local_vol_model = None
+        if self._model_name == "Dupire":
+            key = (BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
+            cached_lv = get_from_cache("DupireLocalVol", key)
+            if cached_lv is None:
+                cached_lv = DupireLocalVol(BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
+                set_in_cache("DupireLocalVol", key, cached_lv)
+            self._local_vol_model = cached_lv
+
+        self._model = self._build_model()
 
     @property
-    def price(self):
-        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-        if self._model == "Black-Scholes-Merton":
-            if self._sigma is None:
-                self._sigma = BASE_SIGMA
-            
-            self._model = dict_models[self._model](self._option, self._sigma)
+    def price(self)->float:
+        if self._model_name == "Black-Scholes-Merton":
             price = self._model.price(self._spot)
             self._payoff = price * np.exp(self._rate * self._option.T) * self._notional
             return price
-        
-        if self._model == "Heston":
-            self._model = dict_models[self._model](self._option, self._model_parameters, self._nb_paths, self._nb_steps)
+        else:
             price = self._model.price(self._spot)
             self._payoff, self._spots_paths = self._model._payoffs, self._model._spots
             return price
-        
-        if self._model == "Dupire":
-            local_vol = DupireLocalVol(BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
-            self._model = dict_models[self._model](self._option, local_vol, self._nb_paths, self._nb_steps)
-            price = self._model.price(self._spot)
-            self._payoff, self._spots_paths = self._model._payoffs, self._model._spots
-            return price
-        
-    @property
-    def delta(self):
-        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-        if self._model == "Black-Scholes-Merton":
-            if self._sigma is None:
-                self._sigma = BASE_SIGMA
-            
-            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._option, self._sigma)
-            return self._model.delta(self._spot)
-        
-        if self._model == "Heston":
-            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
-            delta=self._model.delta(self._spot)
-            return delta
 
     @property
-    def gamma(self):
-        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-        if self._model == "Black-Scholes-Merton":
-            if self._sigma is None:
-                self._sigma = BASE_SIGMA
-            
-            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-            self._model = dict_models[self._model](self._option, self._sigma)
-            return self._model.gamma(self._spot)
-
-        if self._model == "Heston":
-            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
-            gamma=self._model.gamma(self._spot)
-            return gamma
+    def delta(self)->float:
+        return self._greek("delta")
 
     @property
-    def vega(self):
-        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-        if self._model == "Black-Scholes-Merton":
-            if self._sigma is None:
-                self._sigma = BASE_SIGMA
-            self._model = dict_models[self._model](self._option, self._sigma)
-            return self._model.vega(self._spot)
-        
-        if self._model == "Heston":
-            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
-            vega=self._model.vega(self._spot)
-            return vega
+    def gamma(self)->float:
+        return self._greek("gamma")
 
     @property
-    def theta(self):
-        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-        if self._model == "Black-Scholes-Merton":
-            if self._sigma is None:
-                self._sigma = BASE_SIGMA
-            
-            self._model = dict_models[self._model](self._option, self._sigma)
-            return self._model.theta(self._spot, self._rate)
-
-        if self._model == "Heston":
-            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
-            theta=self._model.theta(self._spot)
-            return theta
+    def vega(self)->float:
+        return self._greek("vega")
 
     @property
-    def rho(self):
-        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
-        if self._model == "Black-Scholes-Merton":
-            if self._sigma is None:
-                self._sigma = BASE_SIGMA
-            self._model = dict_models[self._model](self._option, self._sigma)
-            return self._model.rho(self._spot, self._rate)
-        
-        if self._model == "Heston":
-            self._model = dict_models[self._model](self._option, self._model_parameters, NB_PATHS_GREEKS, NB_STEPS_GREEKS)
-            gamma=self._model.rho(self._spot)
-            return gamma
+    def theta(self)->float:
+        return self._greek("theta")
+
+    @property
+    def rho(self)->float:
+        return self._greek("rho")
+
+    def _build_model(self):
+        if self._model_name == "Black-Scholes-Merton":
+            sigma = self._sigma if self._sigma is not None else BASE_SIGMA
+            return BSM(self._option, sigma)
+
+        elif self._model_name == "Heston":
+            return Heston(self._option, self._model_parameters, self._nb_paths, self._nb_steps)
+
+        elif self._model_name == "Dupire":
+            return Dupire(self._option, self._local_vol_model, self._nb_paths, self._nb_steps)
+
+        else:
+            raise ValueError("Model not recognized")
+
+    def _update_model(self):
+        self._model = self._build_model()
+
+    def _greek(self, greek_name:str):
+        self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type,
+                                     strike=self._strike, notional=self._notional, currency=self._currency,
+                                     div_rate=self._div_rate)
+        self._update_model()
+        return getattr(self._model, greek_name)(self._spot)
 
     def implied_vol(self, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> float:
         if self._price is None:
             self._price = self.price
-        if self._model == "Black-Scholes-Merton":
-            self._option = VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate, price=self._price)
-            self._model = dict_models[self._model]
-            volatility_finder = ImpliedVolatilityFinder(model=self._model, option=self._option, price=self._price, method=method, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point, spot=self._spot)
-            return volatility_finder.find_implied_volatility()
-        else:
-            raise ValueError("Model not supported for implied volatility calculation. Please choose Black-Scholes-Merton.")
-        
+        self._model = dict_models["Black-Scholes-Merton"]
+        volatility_finder = ImpliedVolatilityFinder(model=self._model, option=self._option, price=self._price, method=method, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point, spot=self._spot)
+        return volatility_finder.find_implied_volatility()
+    
     def svi_params(self, vector_types:list, vector_strikes:list, vector_prices:list, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> tuple:
-        if self._model == "Black-Scholes-Merton":
-            options=[]
-            for i in range(len(vector_strikes)):
-                options.append(VanillaOption(start_date=self._start_date, end_date=self._end_date, type=vector_types[i], strike=vector_strikes[i], notional=self._notional, currency=self._currency, div_rate=self._div_rate))
-            self._model = dict_models[self._model]
-            svi_params_finder = SVIParamsFinder(model=self._model, vector_options=options, vector_prices=vector_prices, method_implied_vol=method, spot=self._spot, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point)
-            result = svi_params_finder.find_svi_parameters()
-            return result
-        else:
-            raise ValueError("Didn't find SVI Parameters with these inputs!")
+        options=[]
+        for i in range(len(vector_strikes)):
+            options.append(VanillaOption(start_date=self._start_date, end_date=self._end_date, type=vector_types[i], strike=vector_strikes[i], notional=self._notional, currency=self._currency, div_rate=self._div_rate))
+        self._model = dict_models["Black-Scholes-Merton"]
+        svi_params_finder = SVIParamsFinder(model=self._model, vector_options=options, vector_prices=vector_prices, method_implied_vol=method, spot=self._spot, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point)
+        result = svi_params_finder.find_svi_parameters()
+        return result
 
     def get_option(self):
-        return VanillaOption(start_date=self._start_date, end_date=self._end_date, type=self._type, strike=self._strike, notional=self._notional, currency=self._currency, div_rate=self._div_rate)
+        return self._option
 
+#-------------------------------------------------------------------------------------------------------
+#-----------------------------------Script pour portefeuille de produits:-------------------------------
+#-------------------------------------------------------------------------------------------------------
+#We need to create / implement products here: digits / barriers / autocalls
+dict_products = {"Vanilla Option": VanillaOption,
+                 
+                 }
+#Option portolio:
+class Portfolio:
+    """
+    Class to regroup and launch pricing of multiple options / products.
+    Look at it like an interface with the front-end.
+    """
+    def __init__(self):
+        self._dict_product = {}
+        pass
+
+    def _add_product(self, type_prodct:str):
+        pass
+
+    def _create_product(self):
+        pass
+
+    def _price_portfolio(self):
+        pass

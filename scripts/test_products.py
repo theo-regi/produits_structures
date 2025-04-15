@@ -266,7 +266,7 @@ class TestSSVI(unittest.TestCase):
 
     def test_calibrate(self):
         """Test calibration of SSVI parameters"""
-        params = self.ssvi.get_ssvi_params
+        params = self.ssvi.get_ssvi_params()
         print(params)
         self.assertEqual(isinstance(params, dict), True)
         self.assertEqual(len(list(params.values())), 6)
@@ -285,7 +285,6 @@ class TestLocalVolMatrix(unittest.TestCase):
 
     def test_get_local_implied_vol(self):
         local_vol = self.local_vol.get_local_implied_vol(0.5, 190)
-        #print(local_vol)
         self.assertEqual(isinstance(local_vol, float),True)
         self.assertAlmostEqual(local_vol, 0.32776, places=4)
 
@@ -342,7 +341,7 @@ class TestPricer(unittest.TestCase):
     def test_payoff(self):
         # Example test case for payoff calculation
         self.pricer.price
-        self.assertAlmostEqual(self.pricer.payoff, 2.024207616, places=4)
+        self.assertAlmostEqual(self.pricer._payoff, 2.024207616, places=4)
 
 class TestHestonCalibration(unittest.TestCase):    
     def test_heston_calibration_SSVI(self):
@@ -427,5 +426,26 @@ class TestDupireDiffusion(unittest.TestCase):
         self.assertAlmostEqual(price, 12.17, places=1)
         self.assertEqual(isinstance(payoffs, list), True)
 
+    def test_delta(self):
+        delta = self.pricer.delta
+        self.assertAlmostEqual(delta, 0.6, places=1)
+    
+    def test_gamma(self):
+        gamma = self.pricer.gamma
+        self.assertAlmostEqual(gamma, 0.0081, places=1)
+
+    def test_vega(self):
+        vega = self.pricer.vega
+        print(vega)
+        self.assertAlmostEqual(vega, 3.4403, places=1)
+
+    def test_theta(self):
+        theta = self.pricer.theta
+        self.assertAlmostEqual(theta, -61.85, places=1)
+    
+    def test_rho(self):
+        rho = self.pricer.rho
+        self.assertAlmostEqual(rho, 18.15, places=1)
+    
 if __name__ == "__main__":
     unittest.main()

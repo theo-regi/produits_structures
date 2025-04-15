@@ -330,7 +330,6 @@ class Dupire:
         self._option=option
         self._local_vol=local_vol_surface_dupire
         self._first_date=list(self._local_vol._maturities_t.values())[0]
-        #print(list(self._local_vol._maturities_t.values())[-1])
         self._nb_paths=nb_paths
         self._nb_steps=nb_steps
 
@@ -339,7 +338,11 @@ class Dupire:
         self._price=None
         pass
 
-    def _generate_paths(self, spot:float, seed:float=SEED_SIMULATIONS) -> np.ndarray:
+    def _generate_paths(self, spot:float, seed:float=SEED_SIMULATIONS, spread_vol:float=0) -> np.ndarray:
+        """
+        Generate paths for the Dupire model using the local volatility surface.
+        """
+
         if seed is not None:
             np.random.seed(seed)
         
@@ -355,12 +358,12 @@ class Dupire:
             if self._nb_paths>1:
                 z[:,i] = (z[:,i] - np.mean(z[:,i]))/np.std(z[:,i])
             effective_t = max(float(t[i]), (float(self._first_date)+0.0000001))
-            vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike)
+            vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike) + spread_vol
             count = 0
-            while check == False and count < 100:
+            while check == False and count < 1000:
                 count += 1
                 if vol_loc is None:
-                    vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike)
+                    vol_loc = self._local_vol.get_local_implied_vol(effective_t, self._option._strike) + spread_vol
                 else:
                     check = True
 
@@ -371,11 +374,11 @@ class Dupire:
         paths = {"time":t, "Spots": sts}
         return paths
 
-    def _calculate_payoffs(self, spot) -> None:
+    def _calculate_payoffs(self, spot:float, spread_vol:float=0) -> None:
         """
         Compute pay_offs of the given option.
         """
-        paths = self._generate_paths(spot)
+        paths = self._generate_paths(spot, spread_vol=spread_vol)
         self._spots = paths['Spots'][:, -1]
 
         payoffs=[]
@@ -384,23 +387,86 @@ class Dupire:
         self._payoffs=payoffs
         pass
 
-    def price(self, spot)->float:
-        self._calculate_payoffs(spot)
+    def price(self, spot:float, spread_vol:float=0)->float:
+        """
+        Calculate the price of the given option using the local volatility surface.
+        """
+        self._calculate_payoffs(spot, spread_vol)
         price=np.exp(-self._option._rate*self._option.T) * np.mean(self._payoffs)
         if self._price is None:
             self._price=price
         return price
 
-    def delta(self, spot, delta_p=BASE_DELTA_S):
-        price = self.price(spot)
-        price_up = self.price(spot * (1 + delta_p))
-        return (price_up - price) / (spot * delta_p)
+    def delta(self, spot:float, delta_p:float=BASE_DELTA_S):
+        """
+        Calculate Delta of the given option.
+        """
+        if self._price is None:
+            self._price = self.price(spot)
 
-    def gamma(self, spot, delta_p=BASE_DELTA_S):
+        spot_prime=spot * (1 + delta_p)
+        price_prime = self.price(spot_prime)
+        return (price_prime - self._price)/(spot_prime-spot)
+
+    def gamma(self, spot:float, delta_p=BASE_DELTA_S) -> float:
+        """
+        Calculate Gamma of the given option.
+        """
+        if self._price is None:
+            self._price = self.price(spot)
+
+        spot_up=spot*(1 + delta_p)
+        spot_down=spot*(1 - delta_p)
+
+        price_up=self.price(spot_up)
+        price_down=self.price(spot_down)
+        return (price_up+price_down-2*self._price) / ((spot_up-spot)**2)
+
+    def vega(self, spot:float)-> float:
+        """
+        Calculate Vega of the given option.
+        """
+        if self._price is None:
+            self._price = self.price(spot)
+
+        #new_model = self.__deep_copy__()
+        #new_model.__init__(new_model._option, new_model._local_vol, new_model._nb_paths, new_model._nb_steps, spread_vol=0.01)
+        
+        price_prime = self.price(spot,spread_vol=0.01)
+        return (price_prime - self._price)/np.sqrt(0.01)
+    
+    def theta(self, spot:float)->float:
+        """
+        Calculate Theta of the given option.
+        """
+        if self._price is None:
+            self._price = self.price(spot)
+
+        new_option=self._option.__deep_copy__()
+        date_obj= datetime.strptime(new_option._end_date, new_option._format)
+        date_obj-=timedelta(days=1)
+        new_date=date_obj.strftime(new_option._format)
+        new_option._end_date=new_date
+        new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._price)
+        
+        new_model=self.__deep_copy__()
+        new_model._option=new_option
+        #new_model.__init__(new_model._option, new_model._local_vol, new_model._nb_paths, new_model._nb_steps)
+
+        dt=self._option.T-new_model._option.T
+        new_price=new_model.price(spot)
+        return (new_price-self._price)/dt
+    
+    def rho(self, spot:float, rate=None):
         price = self.price(spot)
-        price_up = self.price(spot * (1 + delta_p))
-        price_down = self.price(spot * (1 - delta_p))
-        return (price_up + price_down - 2 * price) / ((spot * delta_p) ** 2)
+        if rate is None:
+            rate = self._option._rate + 0.01
+
+        new_model = self.__deep_copy__()
+        new_model._option._rate = rate
+
+        price_prime = new_model.price(spot)
+        return (price_prime - price) / (rate - self._option._rate)
 
     def __deep_copy__(self):
         """
