@@ -360,7 +360,6 @@ class Rates_curve:
         # Préparation des données
         r_t = curve_df["Rate"].values[:-1] / 100  # convertir en proportion
         r_t_dt = curve_df["Rate"].values[1:] / 100
-        delta_t = np.diff(curve_df["Year_fraction"].values)
 
         # Régression linéaire pour estimer alpha et beta
         X = r_t.reshape(-1, 1)
@@ -368,68 +367,56 @@ class Rates_curve:
         model = LinearRegression().fit(X, y)
         alpha = model.coef_[0]
         beta = model.intercept_
+        y_pred = model.predict(X)
+        residuals = y - y_pred
+        final_sigma = np.std(residuals)  # Volatilité empirique
 
-        # Estimation de k et theta
-        a_value=[]
-        for rates in curve_df["Rate"]:
-            a = (1 - (alpha/rates)) / delta_t[0]  # Assumant delta_t constant
-        a_mean = np.mean(a_value)
-        k = beta / (a * delta_t[0])
-
-        # Courbe attendue selon la régression linéaire :
-        r_t_full = curve_df["Rate"].values 
-        expected_path = alpha * r_t_full + beta
-        curve_df["Vasicek_expected"] = expected_path * 100
-
-        curve_df["Residual"] = curve_df["Rate"] - curve_df["Vasicek_expected"]
-        curve_df["Residual"] = curve_df["Residual"] - a*(k-curve_df["Rate"])*delta_t[0]
-        
         t = curve_df["Year_fraction"].values
         n_steps = len(t)
-        simulations = []
 
-        sigma_value=[]
-        for residual in curve_df["Residual"]:
-            # Estimation de la volatilité empirique à partir des résidus
-            sigma = residual/(np.sqrt(delta_t[0])*np.random.normal(0, 1))
-            sigma_value.append(sigma)
-        print(np.average(sigma_value))
-        
-        '''dt=delta_t[0]
-        # Initialisation de sigma
-        sigma = 0.01  # Valeur initiale arbitraire
+        # On recrée le vecteur de pas de temps (avec 0 pour le premier)
+        delta_t_full = curve_df["Year_fraction"].diff().fillna(0.0).values
+
+        # Estimation de k et theta
+        k = -alpha/delta_t_full[1]
+        theta = beta / k
+
+        # Simulation de la courbe selon l'équation de Vasicek
+        n_steps = len(curve_df)
+        all_simulated_rates = np.zeros((n_simulations, n_steps))
+
+        # Simulation de la courbe selon l'équation de Vasicek
+        n_steps = len(curve_df)
+        rates_simulated = np.zeros(n_steps)
+        rates_simulated[0] = curve_df["Rate"].iloc[0] / 100  # point de départ
+
         for sim in range(n_simulations):
-                r_sim = [r_t[0]]  # Commencer avec le premier taux converti en proportion
-                for i in range(1, n_steps):
-                    r_prev = r_sim[-1]
-                    dW_t = np.random.normal(0, 1) * np.sqrt(dt)  # Incrément de Wiener
-                    r_next = r_prev + a * (k - r_prev) * dt + sigma * dW_t
-                    r_sim.append(r_next)
+            rates_simulated = np.zeros(n_steps)
+            rates_simulated[0] = curve_df["Rate"].iloc[0] / 100  # point de départ
 
-                # Mise à jour de sigma après chaque simulation
-                residuals = np.array(r_sim[1:]) - (a * (k - np.array(r_sim[:-1])) * delta_t + sigma * np.sqrt(delta_t) * np.random.normal(0, 1, size=len(r_sim)-1))
-                sigma = np.std(residuals)
+            for i in range(1, n_steps):
+                dt = delta_t_full[i]
+                epsilon = np.random.normal(0, 1)
+                r_prev = rates_simulated[i - 1]
+                r_next = r_prev + k * (theta - r_prev) * dt + final_sigma * np.sqrt(dt) * epsilon
+                rates_simulated[i] = r_next
 
-                simulations.append(np.array(r_sim) * 100)
+            all_simulated_rates[sim] = rates_simulated
 
-        simulations_array = np.array(simulations)  # (n_simulations, n_steps)
-
-        # Estimation de la volatilité à partir des simulations
-        vol_empirique_par_t = np.std(simulations_array, axis=0)  # shape = (n_steps,)
-        sigma_empirique = np.mean(vol_empirique_par_t) / 100  # en proportion'''
-
-        # Tracé du graphique
-        plt.figure(figsize=(10, 6))
-        plt.plot(t, curve_df["Rate"], label="Courbe Observée", marker="o", color="black")
-        plt.plot(t, curve_df["Vasicek_expected"], label="Espérance Vasicek", linestyle="--", color="blue")
-
-        plt.xlabel("Échéance (années)")
+        '''# Tracé des simulations
+        plt.figure(figsize=(10, 5))
+        plt.plot(curve_df["Year_fraction"], curve_df["Rate"], label="Courbe observée", marker="o")
+        for sim in range(n_simulations):
+            plt.plot(curve_df["Year_fraction"], all_simulated_rates[sim] * 100, label=f"Simulation {sim + 1}", linestyle='--')
+        plt.xlabel("Maturité (années)")
         plt.ylabel("Taux (%)")
-        plt.title("Modèle de Vasicek - Courbe Observée, Espérance et Simulations")
-        plt.legend()
+        plt.title("Simulation de la courbe de taux - Modèle de Vasicek")
         plt.grid(True)
         plt.tight_layout()
-        plt.show()
+        plt.show()'''
+
+        # Retourner la volatilité et les courbes simulées
+        return final_sigma, pd.DataFrame(all_simulated_rates * 100, columns=curve_df["Year_fraction"])
 
         return k#, theta J'ai fais sauter theta car il n'a pas de définition au dessus, et fais sauter l'ensemble des tests sinon.
 
