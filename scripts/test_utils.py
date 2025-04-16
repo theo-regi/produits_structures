@@ -238,10 +238,10 @@ class TestRatesCurve(unittest.TestCase):
         curve.create_product_rate_curve(liste,'Quadratic')
 
         vasicek_curve = curve.return_data_frame()
-        print(vasicek_curve)
-        k, theta = curve.Vasicek_volatility(vasicek_curve,100)
-        #vasicek_cruve.Vasicek_volatility(liste, 'Nelson-Siegel')
-        #vasicek_curve.Vasicek_volatility(liste, 'Nelson-Siegel')
+        
+        sigma,vasicek_simulated = curve.Vasicek_volatility(vasicek_curve,50)
+        print(sigma*100)
+        print(vasicek_simulated)
 
 class TestImpliedVolatilityFinder(unittest.TestCase):
     def setUp(self):
