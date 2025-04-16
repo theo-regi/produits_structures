@@ -418,8 +418,6 @@ class Rates_curve:
         # Retourner la volatilité et les courbes simulées
         return final_sigma, pd.DataFrame(all_simulated_rates * 100, columns=curve_df["Year_fraction"])
 
-        return k#, theta J'ai fais sauter theta car il n'a pas de définition au dessus, et fais sauter l'ensemble des tests sinon.
-
 #Classe de recherche de la volatilité implicite
 class ImpliedVolatilityFinder:
     """
