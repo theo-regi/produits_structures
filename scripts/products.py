@@ -1,11 +1,11 @@
-from constants import OptionType, BarrierType, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, \
+from constants import OptionType, BarrierType, AutocallsType, Types, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, \
     BASE_DIV_RATE, BOUNDS_MONEYNESS, OTM_CALIBRATION, VOLUME_CALIBRATION, VOLUME_THRESHOLD, \
     INITIAL_SSVI, SSVI_METHOD, OPTIONS_SOLVER_SSVI,BASE_NOTIONAL, CONVENTION_DAY_COUNT, \
     ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT,BASE_MODEL,\
     BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K, \
     BASE_CALIBRATION_HESTON, BASE_MAX_T, BASE_T_INTERVAL, INITIAL_HESTON, HESTON_BOUNDS,\
     HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES, NUMBER_PATHS_H,\
-    NB_STEPS_H, FILE_PATH, FILE_UNDERLYING, get_from_cache, set_in_cache
+    NB_STEPS_H, FILE_PATH, FILE_UNDERLYING, BASE_MODEL_AUTOCALLS, SOLVER_METHOD, get_from_cache, set_in_cache
 
 from joblib import Parallel, delayed
 from functools import lru_cache
@@ -743,7 +743,7 @@ class EQDProduct(ABC):
     - NPV
     - Greeks: Delta / Gamma / Rho / Theta / Vega
     """
-    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, price:float=None) -> None:
+    def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, strike:float=BASE_STRIKE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, price:float=None, periodicity:str=None) -> None:
         self._start_date = start_date
         self._end_date = end_date
         self._type = type
@@ -756,10 +756,14 @@ class EQDProduct(ABC):
         self._format=format_date
         self._currency=currency
         self._price=price
+        if periodicity is None:
+            self._periodicity="none"
+        else:
+            self._periodicity=periodicity
 
         self._paiments_schedule = \
             PaymentScheduleHandler(self._start_date, self._end_date,
-            "none", self._format).build_schedule(\
+            self._periodicity, self._format).build_schedule(\
             convention=self._day_count, rolling_convention=self._rolling_conv, market=\
             utils.get_market(currency=self._currency))
         
@@ -839,7 +843,7 @@ class BarrierOption(EQDProduct):
     Class for Barrier Option.
 
     Input:
-    -Type (Enum, optional) (call / put)
+    -Type (Enum, optional)
     -Barrier type (Enum, non optional)
     -Spot (float, optional)
     -Strike (float, optional)
@@ -929,6 +933,204 @@ class BarrierOption(EQDProduct):
 
     def __deep_copy__(self):
         return BarrierOption(self._start_date, self._end_date, self._type, self._barrier_type, self._strike, self._barrier_strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
+
+#Vanilla Autocalls
+class Autocalls(EQDProduct):
+    """
+    Class for Autocalls Options (Only one autocall barriers, paying coupons).
+
+    Input:
+    -Type (Enum, optional)
+    -Spot (float, optional)
+    -Strike (float, optional) Given on scale 1 -> 70% = 0.7
+    -Rate (float, optional)
+
+    -date format (string, optional)
+    -currency (string, optional)
+    -start date (string, optional)
+    -end date (string, optional) / options dates
+    -day count convention (string, optional, equal to 30/360 if not provided)
+    -rolling convention (string, optional, equal to Modified Following if not provided)
+    -notional (float, optional, will quote in percent if not provided) / nb underlying shares / equities
+    """
+    def __init__(self, start_date:str, end_date:str, type:str=AutocallsType.AUTOCALL,\
+                strike:float=1, final_strike:float=None, coupon:float=None, coupon_strike:float=None, protection:float=0, memory:bool=True, type_opt:str=Types.AMERICAN,
+                rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT,\
+                rolling_conv:str=ROLLING_CONVENTION, frequency:str=None, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE,\
+                currency:str=BASE_CURRENCY, div_rate:str=BASE_DIV_RATE, price:float=None, volume:float=None) -> None:
+    
+        super().__init__(start_date, end_date, type, strike, rate, day_count, rolling_conv, notional, format_date, currency, price, frequency)
+        self._div_rate=div_rate
+        self._volume=volume
+        self._type_opt = type_opt
+        self._barriers = None
+        self._coupon_strike = coupon_strike
+        self._protection = protection
+        self._memory = memory
+
+        if final_strike is None:
+            self._final_strike = self._strike
+        else:
+            self._final_strike = final_strike   
+        
+        if frequency is None:
+            self._type_opt = Types.AMERICAN
+        pass
+
+        if coupon is None:
+            self._coupon = BASE_RATE
+        else:
+            self._coupon = coupon
+        self._spot = None
+        self._paths=None
+
+    def set_paths(self, paths:dict):
+        """
+        Must be called before doing any calculation.
+        """
+        self._paths = paths
+        self._barriers=self._create_barrier()
+        pass
+
+    def price(self):
+        """
+        Launch the Autocall pricing.
+        """
+        cp = self._coupon
+        npv, payoff = self.npv
+        #df_payoffs= pd.DataFrame(payoff)
+        #df_payoffs.to_excel("test_payoffs.xlsx")
+        call_prob = self._call_probability_distribution()
+        par_cpn = self._calculate_par_coupon()
+        self._coupon=cp
+        return npv, payoff, par_cpn, call_prob
+
+    @property
+    def npv(self):
+        """
+        Calculate the NPV of the EQD product.
+        """
+        payoff = self.payoff
+        dfs = np.exp(-self._rate * self._paths['time'])
+        discounted_payoffs = payoff * dfs[np.newaxis, :]
+        total_npv = np.mean(np.sum(discounted_payoffs, axis=1))
+        return total_npv, payoff
+    
+    @property
+    def payoff(self):
+        """
+        Calculate all the payoffs of the EQD product.
+        """
+        time = self._paths['time']
+        spots = self._paths['Spots']
+        n_paths, n_steps = spots.shape
+
+        cpn = self._coupon / (n_steps-1)
+        coupons = np.zeros_like(spots)
+        memory = np.zeros(n_paths) if self._memory and self._type == AutocallsType.PHOENIX else None
+        payoffs = np.zeros_like(spots)
+        flag = np.zeros(n_paths, dtype=bool)
+        self.call_counts = np.zeros(n_steps, dtype=int)
+
+        if self._type_opt == Types.AMERICAN:
+            for i in range(1,n_steps):
+                barrier = np.ones(n_paths) * self._barriers[i]
+                c_barrier = np.ones(n_paths) * self._coupon_strike[i]
+                act_spots = spots[:,i]
+
+                eligible_for_coupon = (act_spots >= c_barrier) & (~flag)
+                if self._type == AutocallsType.PHOENIX:
+                    if self._memory:
+                        coupons[:, i][eligible_for_coupon] = cpn + memory[eligible_for_coupon]
+                        memory[eligible_for_coupon] = 0
+                        memory[~eligible_for_coupon] += cpn
+                    else:
+                        coupons[:, i][eligible_for_coupon] = cpn
+                else:
+                    eligible_for_coupon = (act_spots >= c_barrier) & (~flag)
+                    coupons[eligible_for_coupon] += cpn
+                
+                redeem = (act_spots >= barrier) & (~flag)
+                if self._type == AutocallsType.PHOENIX:
+                    payoffs[redeem, i] = self._notional
+                    coupons[redeem, i+1:] = 0
+                else:
+                    coupons[redeem] = cpn * i
+                    payoffs[redeem, i] = self._notional + coupons[redeem, i]
+
+                flag[redeem] = True
+                self.call_counts[i] = np.sum(redeem)
+            
+            final_spots=spots[:,-1]
+            final_barrier = self._barriers[-1]
+            no_redeemed= ~flag
+
+            protected = final_spots >= self._protection
+            non_protected = final_spots < self._protection
+
+            if self._type == AutocallsType.PHOENIX:
+                discounted_coupons = coupons * np.exp(-self._rate * time[np.newaxis, :])
+                coupon_leg = np.sum(discounted_coupons, axis=1)
+                payoffs[:, -1][no_redeemed & protected] = self._notional
+                payoffs[:, -1][no_redeemed & non_protected] = self._notional *(final_spots[no_redeemed & non_protected] / final_barrier)
+                payoffs[:, -1][no_redeemed] += coupon_leg[no_redeemed]
+            else:
+                payoffs[:, -1][no_redeemed & protected] = self._notional + cpn * (n_steps - 1)
+                payoffs[:, -1][no_redeemed & non_protected] = self._notional * (final_spots[no_redeemed & non_protected] / final_barrier)
+            return payoffs
+        
+        elif self._type_opt == Types.EUROPEAN:
+            pass
+        else:
+            ValueError(f"Type of exercize: {self._type_opt} not recognize!")
+        pass
+
+    def _create_barrier(self):
+        """
+        Create the barriers dict to populate with the possible dynamic barriers.
+        """
+        times=self._paths['time'].tolist()
+        self._spot=self._paths['Spots'][0][0]
+        steps=len(times)
+        barriers=np.linspace(self._strike, self._final_strike, steps+1) * self._spot
+
+        n_paths = len(self._paths['Spots'])
+        if self._coupon_strike is None:
+            self._coupon_strike = np.array(barriers)
+        else:
+            self._coupon_strike = np.array(np.ones(steps) * self._spot * self._coupon_strike)
+
+        if self._protection is None:
+            self._protection = np.array(np.ones(n_paths)* barriers[-1])
+        else: 
+            self._protection = np.array(np.ones(n_paths) * self._spot * self._protection)
+        return list(barriers)
+    
+    def _calculate_par_coupon(self):
+        """
+        Find the coupon that matches NPV = 0 (or close to).
+        """
+        def objective(coupon):
+            mem_cpn = self._coupon
+            self._coupon = coupon
+            npv, payoff = self.npv
+            self._coupon = mem_cpn
+            return npv
+
+        result = minimize(objective, self._coupon, method=SOLVER_METHOD, bounds=[(0, 1)])
+        if result.success:
+            return result.x[0]
+        else:
+            raise ValueError("Coupon calculation failed.")       
+
+    def _call_probability_distribution(self):
+        """Return a dictionary of call step -> probability of being autocalled."""
+        n_paths = self._paths['Spots'].shape[0]
+        return {i: self.call_counts[i] / n_paths for i in range(len(self.call_counts)) if self.call_counts[i] > 0}
+
+    def __deep_copy__(self):
+        return Autocalls(self._start_date, self._end_date, self._type, self._strike, self._final_strike, self._coupon, self._protection, self._type_opt, self._rate, self._day_count, self._rolling_conv, self._frequency, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
+
 
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
@@ -1675,8 +1877,11 @@ class HestonHelper:
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différentes classes prices---------------------
 #-------------------------------------------------------------------------------------------------------
-#Options pricer:
+#Options pricer: European style options
 class OptionPricer:
+    """
+    Class for European option pricing (usable for Barriers / vanilla european options)
+    """
     def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, barrier_type:str=None, model:str=BASE_MODEL,
                  spot:float = None, strike: float = BASE_STRIKE, barrier_strike:float=None, div_rate: float = BASE_DIV_RATE,
                  day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
@@ -1810,6 +2015,157 @@ class OptionPricer:
     def get_option(self):
         return self._option
 
+#Vanilla Autocall:
+class VAutocallPricer:
+    """
+    Autocal pricing engine.
+    """
+    def __init__(self, start_date:str, end_date:str, type:str=AutocallsType.AUTOCALL, model:str=BASE_MODEL_AUTOCALLS,
+                 spot:float = None, strike: float = BASE_STRIKE, final_strike:float = None, coupon:float=None, coupon_strike:float=None,
+                 protection:float=None, memory:bool=True, exercise_type:float=None, div_rate: float = BASE_DIV_RATE, 
+                 day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
+                 notional: float = BASE_NOTIONAL, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
+                 sigma: float = None, rate: float = BASE_RATE, model_parameters: dict = None, nb_paths: float = NUMBER_PATHS_H, nb_steps: float = NB_STEPS_H,
+                 price: float = None, data_path: str = FILE_PATH, file_name_underlying: str = FILE_UNDERLYING) -> None:
+        
+        self._data_path = data_path
+        self._file_name_underlying = file_name_underlying
+        
+        self._model_name = model
+        self._start_date = start_date
+        self._end_date = end_date
+        self._type = type
+        self._strike = strike
+        self._final_strike = final_strike
+        self._coupon=coupon
+        self._coupon_strike=coupon_strike
+        self._memory=memory
+        self._protection_capital=protection
+        self._exercise_type=exercise_type
+
+        self._div_rate = div_rate
+        self._day_count = day_count
+        self._rolling_conv = rolling_conv
+        self._notional = notional
+        self._format_date = format_date
+        self._currency = currency
+        self._sigma = sigma
+        self._rate = rate
+
+        if spot is None:
+            data = pd.read_csv(self._file_name_underlying, sep=';', index_col=0)
+            data.index = pd.to_datetime(data.index)
+            spot = data.loc[pd.to_datetime(self._start_date),"4. close"]
+        self._spot = spot
+
+        self._model_parameters = model_parameters
+        self._nb_paths = nb_paths
+        self._nb_steps = nb_steps
+        self._spots_paths = None
+        self._payoff = None
+        self._price = price
+
+        self._option = Autocalls(start_date=self._start_date, end_date=self._end_date, type=self._type,\
+                                     strike=self._strike, final_strike=self._final_strike, coupon=self._coupon, coupon_strike=self._coupon_strike, \
+                                     protection=self._protection_capital, memory=self._memory, type_opt=self._exercise_type)
+
+        self._local_vol_model = None
+        if self._model_name == "Dupire":
+            key = (BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
+            cached_lv = get_from_cache("DupireLocalVol", key)
+            if cached_lv is None:
+                cached_lv = DupireLocalVol(BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
+                set_in_cache("DupireLocalVol", key, cached_lv)
+            self._local_vol_model = cached_lv
+
+        self._model = self._build_model()
+        pass
+
+    @property
+    def price(self)->float:
+        if self._model_name == "Black-Scholes-Merton":
+            ValueError(f"Model {self._model_name} not supported for autocalls !")
+        else:
+            paths = self._model._generate_paths(self._spot)
+            self._option.set_paths(paths)
+            npv, payoff, par_cpn, call_prob = self._option.price()
+            return npv, payoff, par_cpn, call_prob
+
+    @property
+    def delta(self)->float:
+        return self._greek("delta")
+
+    @property
+    def gamma(self)->float:
+        return self._greek("gamma")
+
+    @property
+    def vega(self)->float:
+        return self._greek("vega")
+
+    @property
+    def theta(self)->float:
+        return self._greek("theta")
+
+    @property
+    def rho(self)->float:
+        return self._greek("rho")
+
+    def _build_model(self):
+        if self._model_name == "Black-Scholes-Merton":
+            sigma = self._sigma if self._sigma is not None else BASE_SIGMA
+            return BSM(self._option, sigma)
+
+        elif self._model_name == "Heston":
+            return Heston(self._option, self._model_parameters, self._nb_paths, self._nb_steps)
+
+        elif self._model_name == "Dupire":
+            return Dupire(self._option, self._local_vol_model, self._nb_paths, self._nb_steps)
+
+        else:
+            raise ValueError("Model not recognized")
+
+    def _update_model(self):
+        self._model = self._build_model()
+
+    def _greek(self, greek_name:str):
+        self._update_model()
+        return getattr(self._model, greek_name)(self._spot)
+
+    def implied_vol(self, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> float:
+        if self._price is None:
+            self._price = self.price
+        self._model = dict_models["Black-Scholes-Merton"]
+        volatility_finder = ImpliedVolatilityFinder(model=self._model, option=self._option, price=self._price, method=method, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point, spot=self._spot)
+        return volatility_finder.find_implied_volatility()
+    
+    def svi_params(self, vector_types:list, vector_strikes:list, vector_prices:list, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> tuple:
+        options=[]
+        for i in range(len(vector_strikes)):
+            options.append(VanillaOption(start_date=self._start_date, end_date=self._end_date, type=vector_types[i], strike=vector_strikes[i], notional=self._notional, currency=self._currency, div_rate=self._div_rate))
+        self._model = dict_models["Black-Scholes-Merton"]
+        svi_params_finder = SVIParamsFinder(model=self._model, vector_options=options, vector_prices=vector_prices, method_implied_vol=method, spot=self._spot, tolerance=tolerance, nb_iter=max_iter, bounds=bounds, starting_point=starting_point)
+        result = svi_params_finder.find_svi_parameters()
+        return result
+
+    def get_option(self):
+        return self._option
+
+#Auto call pricer for Athenas and Phoenix (differentiated because slightly different mechanisms):
+class AutocallPricer:
+    """
+    Autocal pricing engine.
+    """
+    def __init__(self, start_date:str, end_date:str, type:str=AutocallsType.ATHENA, model:str=BASE_MODEL_AUTOCALLS,
+                 spot:float = None, strike: float = BASE_STRIKE, auto_call_strike:float=None, \
+                 div_rate: float = BASE_DIV_RATE,\
+                 day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
+                 notional: float = BASE_NOTIONAL, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
+                 sigma: float = None, rate: float = BASE_RATE, price: float = None,
+                 model_parameters: dict = None, nb_paths: float = NUMBER_PATHS_H, nb_steps: float = NB_STEPS_H,
+                 data_path: str = FILE_PATH, file_name_underlying: str = FILE_UNDERLYING) -> None:
+
+        pass
 #-------------------------------------------------------------------------------------------------------
 #-----------------------------------Script pour portefeuille de produits:-------------------------------
 #-------------------------------------------------------------------------------------------------------
@@ -1824,6 +2180,9 @@ dict_products = {"Call": OptionType.CALL,
                  "Put Down and Out": BarrierType.PUT_DOWN_OUT,
                  "Put Up and In": BarrierType.PUT_UP_IN,
                  "Put Up and Out": BarrierType.PUT_UP_OUT,
+                 "Autocall": AutocallsType.AUTOCALL,
+                 "Athena Autocall": AutocallsType.ATHENA,
+                 "Phoenix Autocall": AutocallsType.PHOENIX,
                  }
 
 #Option portolio:
@@ -1836,7 +2195,7 @@ class Portfolio:
         self._portfolio = {}
         pass
 
-    def _add_product(self, type_product:str, start_date:str, end_date:str, quantity:float=1, strike:float=BASE_STRIKE, barrier_strike:float=None, model:str=BASE_MODEL, spot:float=None, div_rate:float=BASE_DIV_RATE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None):
+    def _add_product(self, type_product:str, start_date:str, end_date:str, quantity:float=1, strike:float=BASE_STRIKE, barrier_strike:float=None, model:str=BASE_MODEL, spot:float=None, div_rate:float=BASE_DIV_RATE, rate:float=BASE_RATE, day_count:str=CONVENTION_DAY_COUNT, rolling_conv:str=ROLLING_CONVENTION, notional:float=BASE_NOTIONAL, format_date:str=FORMAT_DATE, currency:str=BASE_CURRENCY, sigma:float=None, heston_parameters:dict=None):
         """
         Add a product to the portfolio.
         """
@@ -1849,7 +2208,7 @@ class Portfolio:
                     strike_effective=0.1
                 else: 
                     strike_effective = strike
-                option_pricer = OptionPricer(start_date, end_date, type=dict_products[type_product], barrier_strike=barrier_strike, model=model, spot=spot, strike=strike_effective, div_rate=div_rate, rate=rate, day_count=day_count, rolling_conv=rolling_conv, notional=notional, format_date=format_date, currency=currency, sigma=sigma)
+                option_pricer = OptionPricer(start_date, end_date, type=dict_products[type_product], barrier_strike=barrier_strike, model=model, spot=spot, strike=strike_effective, div_rate=div_rate, rate=rate, day_count=day_count, rolling_conv=rolling_conv, notional=notional, format_date=format_date, currency=currency, sigma=sigma, model_parameters=heston_parameters)
                 self._portfolio[key] = {'pricer': option_pricer, 'quantity': quantity}
             else:
                 self._portfolio[key]['quantity'] += quantity

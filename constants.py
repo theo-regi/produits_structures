@@ -188,7 +188,7 @@ SEED_SIMULATIONS = 12345 #Do put None to get real random simulations.
 #Constants for DELTA calculation (price change on the underlying):
 BASE_DELTA_S=0.01 #Delta for the underlying (1%)
 
-
+BASE_MODEL_AUTOCALLS = "Heston"
 
 #_______________________________ENUM CONSTANTS:_______________________________
 #Enum for the type of options: CALL or PUT
@@ -206,6 +206,15 @@ class BarrierType(enum.Enum):
     PUT_UP_OUT = 8.0
     PUT_DOWN_IN = 9.0
     PUT_DOWN_OUT = 10.0
+
+class AutocallsType(enum.Enum):
+    AUTOCALL = 13.0
+    ATHENA = 11.0
+    PHOENIX = 12.0
+
+class Types(enum.Enum):
+    AMERICAN = -1
+    EUROPEAN = -2
 
 #_______________________________CONSTANTS FOR CACHE:___________________________
 CACHED_OBJECTS = {

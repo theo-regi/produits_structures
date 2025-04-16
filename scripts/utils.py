@@ -431,7 +431,7 @@ class Rates_curve:
         plt.tight_layout()
         plt.show()
 
-        return k, theta
+        return k#, theta J'ai fais sauter theta car il n'a pas de définition au dessus, et fais sauter l'ensemble des tests sinon.
 
 #Classe de recherche de la volatilité implicite
 class ImpliedVolatilityFinder:

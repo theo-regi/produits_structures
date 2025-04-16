@@ -2,10 +2,10 @@ import numpy as np
 import unittest
 from products import ZCBond, FixedLeg, FloatLeg,\
     Swap, VanillaOption, OptionMarket, SSVICalibration,\
-    OptionPricer, DupireLocalVol, HestonHelper, Portfolio
+    OptionPricer, DupireLocalVol, HestonHelper, Portfolio, VAutocallPricer, AutocallPricer
 
 from utils import Rates_curve
-from constants import OptionType, BarrierType
+from constants import OptionType, BarrierType, AutocallsType, Types
 import matplotlib.pyplot as plt
 
 class TestZCBond(unittest.TestCase):
@@ -451,12 +451,12 @@ class TestDupireDiffusion(unittest.TestCase):
 class TestPortfolio(unittest.TestCase):
     def setUp(self):
         self.ptf = Portfolio()
+        params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
         #self.ptf._add_product("Call", "13/03/2025", "16/05/2025", 1, 0.1, None, "Dupire", notional=1)
         #self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
 
         self.ptf._add_product("Call Up and Out", "13/03/2025", "16/05/2025", 1, 210, 240, "Dupire", notional=1)
-        self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
-        self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
+        #self.ptf._add_product("Put", "13/03/2025", "16/05/2025", 1, 210, 180, "Heston", notional=1, heston_parameters=params)
 
     def test_price_portfolio(self):
         price, payoffs, spots = self.ptf.price_portfolio()
@@ -464,6 +464,63 @@ class TestPortfolio(unittest.TestCase):
         plt.show()
         self.assertAlmostEqual(price, 12.17, places=1)
         self.assertEqual(isinstance(payoffs, list), True)
+
+class TestAutocalls(unittest.TestCase):
+    """
+    Class to test both VAutocallPricer and Autocalls class:
+    """
+    
+    def setUp(self):
+        params = params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
+        """
+        self._pricer = VAutocallPricer(
+            start_date="13/03/2025",
+            end_date="16/05/2025",
+            type=AutocallsType.PHOENIX,
+            model="Heston",
+            spot=209.68,
+            strike=1.2,
+            coupon=0.05,
+            protection=0.8,
+            memory=True,
+            exercise_type=Types.AMERICAN,
+            currency="USD",
+            notional=100,
+            model_parameters=params,
+            nb_paths=100,
+            nb_steps=100)"""
+        
+        self._pricer = VAutocallPricer(
+            start_date="13/03/2025",
+            end_date="16/05/2025",
+            type=AutocallsType.AUTOCALL,
+            model="Heston",
+            spot=209.68,
+            strike=1.2,
+            final_strike=1.0,
+            coupon_strike=0.9,
+            coupon=0.05,
+            protection=0.8,
+            memory=True,
+            exercise_type=Types.AMERICAN,
+            currency="USD",
+            notional=100,
+            model_parameters=params,
+            nb_paths=100,
+            nb_steps=100)
+        pass
+
+    def test_price(self):
+        npv, payoff, par_cpn, call_prob = self._pricer.price
+        print(payoff)
+        print(npv)
+        print(par_cpn)
+        print(np.cumsum(list(call_prob.values())))
+        #plt.scatter(spots, payoff, label='Autocall Payoff', s=10)
+        #plt.show()
+        #self.assertAlmostEqual(price, 12.17, places=1)
+        #self.assertEqual(isinstance(payoffs, list), True)
+        pass
 
 if __name__ == "__main__":
     unittest.main()

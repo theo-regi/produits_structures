@@ -307,6 +307,17 @@ class Heston:
         paths = {"time":t, "Spots": sts}
         return paths
 
+    def _generate_paths(self, spot:float, seed:float=SEED_SIMULATIONS) -> np.ndarray:
+        """
+        Generate paths for the Heston model using the specified method.
+        """
+        if self._paths_method == 'Euler':
+            return self._generate_paths_Euler(spot, seed)
+        elif self._paths_method == 'AES':
+            return self._generate_paths_AES(spot, seed)
+        else:
+            raise ValueError("Unsupported path generation method: {}".format(self._paths_method))
+
     def __deep_copy__(self):
         """
         Create a deep copy of the Heston model.
