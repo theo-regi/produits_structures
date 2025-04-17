@@ -1194,7 +1194,6 @@ class Autocalls(EQDProduct):
     def __deep_copy__(self):
         return Autocalls(self._start_date, self._end_date, self._type, self._strike, self._final_strike, self._coupon, self._protection, self._type_opt, self._rate, self._day_count, self._rolling_conv, self._frequency, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
 
-
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
 #de dividendes etc.
@@ -2234,7 +2233,7 @@ dict_products = {"Call": OptionType.CALL,
                  "Phoenix Autocall": AutocallsType.PHOENIX,
                  }
 
-#Option portolio:
+#Option portolio for option strategies:
 class Portfolio:
     """
     Class to regroup and launch pricing of multiple options / products.

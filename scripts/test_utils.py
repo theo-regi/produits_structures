@@ -279,7 +279,8 @@ class TestOptionMarket_SVI_Connection(unittest.TestCase):
         p_date = "13/03/2025"
         maturity = '17/12/2027' #Checking first pricing date, first maturity "16/05/2025"
         self._spot=None
-        list_types, list_strikes, list_prices, self._spot, t_options, options_for_calibration = self.option_market.get_values_for_calibration_SVI(p_date, maturity,(0.7, 1.3) , OTM_v)
+
+        list_types, list_strikes, list_prices, self._spot, t_options, options_for_calibration = self.option_market.get_values_for_calibration_SVI(p_date, maturity)
         self.pricer = OptionPricer(p_date, maturity, model="Black-Scholes-Merton", spot=self._spot, div_rate=0, currency="EUR", rate=0, notional=1)
 
         self.params = self.pricer.svi_params(list_types, list_strikes, list_prices)

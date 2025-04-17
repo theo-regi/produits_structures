@@ -452,11 +452,10 @@ class TestPortfolio(unittest.TestCase):
     def setUp(self):
         self.ptf = Portfolio()
         params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
-        #self.ptf._add_product("Call", "13/03/2025", "16/05/2025", 1, 0.1, None, "Dupire", notional=1)
-        #self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
-
+        self.ptf._add_product("Call", "13/03/2025", "16/05/2025", 1, 0.1, None, "Dupire", notional=1)
+        self.ptf._add_product("Put Down and Out", "13/03/2025", "16/05/2025", 1, 210, 180, "Dupire", notional=1)
         self.ptf._add_product("Call Up and Out", "13/03/2025", "16/05/2025", 1, 210, 240, "Dupire", notional=1)
-        #self.ptf._add_product("Put", "13/03/2025", "16/05/2025", 1, 210, 180, "Heston", notional=1, heston_parameters=params)
+        self.ptf._add_product("Put", "13/03/2025", "16/05/2025", 1, 210, 180, "Heston", notional=1, heston_parameters=params)
 
     def test_price_portfolio(self):
         price, payoffs, spots = self.ptf.price_portfolio()
