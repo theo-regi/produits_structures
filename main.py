@@ -13,16 +13,18 @@ STYLE_PATH = os.path.join(ASSETS_DIR, "style.css")
 LOGO_PATH = os.path.join(ASSETS_DIR, "dauphine_logo.png")
 
 import streamlit as st
-from streamlit.components.v1 import html
 from PIL import Image
 import base64
-import time
 from scripts.products import SSVICalibration, DupireLocalVol, HestonHelper
 import constants
+from constants import clear_cache
 
 #Mise en Page de la page principale.
 st.session_state.STYLE_PATH = STYLE_PATH
-st.set_page_config(page_title="Pricer produits structurés", layout="wide")  # Active le mode large
+st.set_page_config(
+    page_title="📊 Structure product pricer",
+    layout="wide"
+)
 
 def apply_css(STYLE_PATH):
     with open(STYLE_PATH, "r") as f:
@@ -48,6 +50,9 @@ st.markdown(
 
 st.markdown("<hr>", unsafe_allow_html=True)
 
+#-----------------------------------------------------------------------------------------------------
+#------------------------------------Page d'acceuil---------------------------------------------------
+#-----------------------------------------------------------------------------------------------------
 # ---------- STYLE & CENTRAGE ----------
 st.markdown("""
     <div style='text-align:center;'>
@@ -72,6 +77,7 @@ with st.container():
         st.markdown("<div style='display:flex; justify-content:center; margin-top:10px;'>", unsafe_allow_html=True)
 
         if st.button("⚙️ Models calibration"):
+            clear_cache()
             with st.spinner("⏳ Calibration running... May take few minutes..."):
 
                 progress_bar = st.progress(0)
@@ -82,9 +88,11 @@ with st.container():
                                     data_path=constants.FILE_PATH,
                                     file_name_underlying=constants.FILE_UNDERLYING,
                                     pricing_date=selected_date)
+                st.session_state.spot = ssvi._option_market.get_spot(selected_date)
+
                 progress_bar.progress(33)
 
-                status_text.text("<span style='color:#002060;'>Étape 2/3 : Local Volatility Surface Calibration...</span>")
+                status_text.markdown("<span style='color:#002060;'>Étape 2/3 : Local Volatility Surface Calibration...</span>", unsafe_allow_html=True)
                 dupire = DupireLocalVol(model="Black-Scholes-Merton",
                                         data_path=constants.FILE_PATH,
                                         file_name_underlying=constants.FILE_UNDERLYING,
@@ -92,7 +100,7 @@ with st.container():
                 progress_bar.progress(66)
 
                 """
-                status_text.text("<span style='color:#002060;'>Étape 3/3 : Heston Model Calibration...</span>")
+                status_text.markdown("<span style='color:#002060;'>Étape 3/3 : Heston Model Calibration...</span>", unsafe_allow_html=True)
                 heston = HestonHelper(model="Black-Scholes-Merton",
                                     data_path=constants.FILE_PATH,
                                     file_name_underlying=constants.FILE_UNDERLYING,
@@ -107,7 +115,6 @@ with st.container():
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
         if st.button("🧹 Cache cleanning: becarefull to recalibrate models !"):
-            from constants import clear_cache
             clear_cache()
             st.markdown(
                     '<div class="success-box">✅ Cache cleaned !</div>',

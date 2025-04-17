@@ -1214,14 +1214,13 @@ class OptionMarket:
         self._df = pd.read_csv(self._filename, sep=";")
         self._dict_df = self._split_price_dates()
 
-        key = (self._filename,self._filename_underlying)
-        cached_om = get_from_cache("OptionMarket", key)
+        cache_key = (self._filename, self._filename_underlying)
+        cached_om = get_from_cache("OptionMarket", cache_key)
         if cached_om is None:
-            cached_om = self
-            set_in_cache("OptionMarket", key, cached_om)
-        else:
             self._spot = None
             self._options_matrices = self._build_options_matrix()
+            cached_om = self
+            set_in_cache("OptionMarket", cache_key, cached_om)
         pass
 
     def _split_price_dates(self):
@@ -1375,11 +1374,11 @@ class SSVICalibration:
         self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
 
-        key_om = (data_path, file_name_underlying)
-        cached_om = get_from_cache("OptionMarket", key_om)
+        cache_key = (data_path, file_name_underlying)
+        cached_om = get_from_cache("OptionMarket", cache_key)
         if cached_om is None:
             self._option_market = OptionMarket(data_path, file_name_underlying)
-            set_in_cache("OptionMarket", key_om, cached_om)
+            set_in_cache("OptionMarket", cache_key, cached_om)
         else:
             self._option_market = cached_om
         
@@ -1405,16 +1404,16 @@ class SSVICalibration:
 
         self.calibrate_SSVI()
 
-        key = (self._pricing_date)
-        cached_ssvi = get_from_cache("SSVICalibration", key)
+        cache_key = (data_path, file_name_underlying)
+        cached_ssvi = get_from_cache("SSVICalibration", cache_key)
         if cached_ssvi is None:
             cached_ssvi = self
-            set_in_cache("SSVICalibration", key, cached_ssvi)
+            set_in_cache("SSVICalibration", cache_key, cached_ssvi)
 
-        cached_params = get_from_cache("SSVI", key)
+        cached_params = get_from_cache("SSVI", cache_key)
         if cached_params is None:
             cached_params = self._ssvi_params
-            set_in_cache("SSVI", key, cached_params)
+            set_in_cache("SSVI", cache_key, cached_params)
 
     @property
     def _params_svis(self)->dict:
@@ -1573,17 +1572,16 @@ class DupireLocalVol:
         self._model = model
         self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
-        key = (model, data_path, file_name_underlying, pricing_date)
-        cached_dupire = get_from_cache("DupireLocalVol", key)
+        cache_key = (data_path, file_name_underlying)
+        cached_dupire = get_from_cache("DupireLocalVol", cache_key)
         if cached_dupire is not None:
             self.__dict__.update(cached_dupire.__dict__)
-            return
-
-        key = (data_path,file_name_underlying)
-        cached_om = get_from_cache("OptionMarket", key)
+        
+        cache_key = (data_path,file_name_underlying)
+        cached_om = get_from_cache("OptionMarket", cache_key)
         if cached_om is None:
             cached_om = OptionMarket(data_path, file_name_underlying)
-            set_in_cache("OptionMarket", key, cached_om)
+            set_in_cache("OptionMarket", cache_key, cached_om)
         
         self._option_market = cached_om
         self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())[:-1]
@@ -1601,7 +1599,7 @@ class DupireLocalVol:
         self._strikes_supported = []
         self._options_for_calibration = None
         
-        cache_key = ("SVI_PARAMS", model, data_path, file_name_underlying, pricing_date)
+        cache_key = (data_path, file_name_underlying)
         cached_params = get_from_cache("SVI_PARAMS", cache_key)
 
         if cached_params is not None:
@@ -1611,7 +1609,8 @@ class DupireLocalVol:
             set_in_cache("SVI_PARAMS", cache_key, self._params)
         #self._params = self._params_svis
         self._implied_vol_df = self._build_implied_vol_matrix()
-        set_in_cache("DupireLocalVol", key, self)
+        cache_key = (data_path, file_name_underlying)
+        set_in_cache("DupireLocalVol", cache_key, self)
 
     @property
     def _params_svis(self)->dict:
@@ -1786,12 +1785,12 @@ class HestonHelper:
 
         self._results_heston=None
 
-        key = (self._data_path,self._file_name_underlying, self._pricing_date)
-        cached_params = get_from_cache("HestonHelper", key)
+        cache_key = (data_path, file_name_underlying)
+        cached_params = get_from_cache("HestonHelper", cache_key)
         if cached_params is None:
             if self._type_calibration=="SSVI":
-                key_ssvi = (self._pricing_date)
-                cached_calibrator = get_from_cache("SSVICalibrator", key_ssvi)
+                cache_key = (data_path, file_name_underlying)
+                cached_calibrator = get_from_cache("SSVICalibrator", cache_key)
                 if cached_calibrator is None:
                     ssvi_calibrator=SSVICalibration(model=self._model, data_path=self._data_path, file_name_underlying=self._file_name_underlying, pricing_date=self._pricing_date, moneyness_level=self._moneyness_level, OTM_calibration=self._OTM_calibration, div_rate=self._div_rate, currency=self._currency, rate=self._rate)
                 else:
@@ -1805,8 +1804,8 @@ class HestonHelper:
             elif self._type_calibration=="Market":
                 options = []
                 
-                key_om = (self._data_path, self._file_name_underlying)
-                cached_om = get_from_cache("OptionMarket", key_om)
+                cache_key = (data_path, file_name_underlying)
+                cached_om = get_from_cache("OptionMarket", cache_key)
                 if cached_om is None:
                     option_market=OptionMarket(self._data_path, self._file_name_underlying)
                 else:
@@ -1820,7 +1819,7 @@ class HestonHelper:
             else:
                 print("Calibration type not recognized ! Please choose: Market or SSVI")
                 pass
-            set_in_cache(HestonHelper, key, self._results_heston)
+            set_in_cache(HestonHelper, cache_key, self._results_heston)
         else:
             self._results_heston = cached_params
         
@@ -1983,12 +1982,12 @@ class OptionPricer:
 
         self._local_vol_model = None
         if self._model_name == "Dupire":
-            key = (BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
-            cached_lv = get_from_cache("DupireLocalVol", key)
+            cache_key = (data_path, file_name_underlying)
+            cached_lv = get_from_cache("DupireLocalVol", cache_key)
             if cached_lv is None:
                 cached_lv = DupireLocalVol(BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
-                set_in_cache("DupireLocalVol", key, cached_lv)
-            self._local_vol_model = cached_lv
+                set_in_cache("DupireLocalVol", cache_key, cached_lv)
+            self._local_vol_model = self._local_vol_model = cached_lv
 
         self._model = self._build_model()
 
@@ -2120,11 +2119,11 @@ class AutocallPricer:
 
         self._local_vol_model = None
         if self._model_name == "Dupire":
-            key = (BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
-            cached_lv = get_from_cache("DupireLocalVol", key)
+            cache_key = (data_path, file_name_underlying)
+            cached_lv = get_from_cache("DupireLocalVol", cache_key)
             if cached_lv is None:
                 cached_lv = DupireLocalVol(BASE_MODEL, self._data_path, self._file_name_underlying, self._start_date, BOUNDS_MONEYNESS, OTM_CALIBRATION, self._div_rate, self._currency, self._rate)
-                set_in_cache("DupireLocalVol", key, cached_lv)
+                set_in_cache("DupireLocalVol", cache_key, cached_lv)
             self._local_vol_model = cached_lv
 
         self._model = self._build_model()
@@ -2208,6 +2207,10 @@ class Portfolio:
             else:
                 self._portfolio[key]['quantity'] += quantity
         print("Product successfully added to portfolio!")
+        pass
+
+    def clear_portfolio(self):
+        self._portfolio = {}
         pass
 
     def price_portfolio(self):
