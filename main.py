@@ -52,8 +52,8 @@ st.markdown("<hr>", unsafe_allow_html=True)
 st.markdown("""
     <div style='text-align:center;'>
         <p style='color:#002060; font-size:16px; padding:10px; border:1px solid #002060; border-radius:8px; display:inline-block;'>
-            En raison du nombre de données limitées pour calibrer les modèles de volatilité, <br>
-            veuillez choisir une des trois dates suivantes, puis cliquez sur <b>calibrer</b>.
+            Because of limited access to market data, only the following dates are available for calibration.
+            Please pick one of the three dates below and click on <b>calibrate</b>.
         </p>
     </div>
 """, unsafe_allow_html=True)
@@ -65,26 +65,26 @@ with st.container():
         st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
         import pandas as pd
         available_dates = ["12/03/2025","13/03/2025", "14/03/2025"] #"12/03/2025"
-        selected_date = st.selectbox("Dates disponibles :", available_dates)
+        selected_date = st.selectbox("Available Dates :", available_dates)
         st.session_state.pricing_date = selected_date
 
         # Centrage horizontal du bouton de calibration
         st.markdown("<div style='display:flex; justify-content:center; margin-top:10px;'>", unsafe_allow_html=True)
 
-        if st.button("⚙️ Calibrer les modèles"):
-            with st.spinner("⏳ Calibration en cours... Cela peut prendre un peu de temps..."):
+        if st.button("⚙️ Models calibration"):
+            with st.spinner("⏳ Calibration running... May take few minutes..."):
 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
 
-                status_text.markdown("<span style='color:#002060;'>Étape 1/3 : Calibration SSVI en cours...</span>", unsafe_allow_html=True)
+                status_text.markdown("<span style='color:#002060;'>Étape 1/3 : SSVI Calibration...</span>", unsafe_allow_html=True)
                 ssvi = SSVICalibration(model="Black-Scholes-Merton",
                                     data_path=constants.FILE_PATH,
                                     file_name_underlying=constants.FILE_UNDERLYING,
                                     pricing_date=selected_date)
                 progress_bar.progress(33)
 
-                status_text.text("<span style='color:#002060;'>Étape 2/3 : Calibration volatilité locale en cours...</span>")
+                status_text.text("<span style='color:#002060;'>Étape 2/3 : Local Volatility Surface Calibration...</span>")
                 dupire = DupireLocalVol(model="Black-Scholes-Merton",
                                         data_path=constants.FILE_PATH,
                                         file_name_underlying=constants.FILE_UNDERLYING,
@@ -92,7 +92,7 @@ with st.container():
                 progress_bar.progress(66)
 
                 """
-                status_text.text("<span style='color:#002060;'>Étape 3/3 : Calibration Heston en cours...</span>")
+                status_text.text("<span style='color:#002060;'>Étape 3/3 : Heston Model Calibration...</span>")
                 heston = HestonHelper(model="Black-Scholes-Merton",
                                     data_path=constants.FILE_PATH,
                                     file_name_underlying=constants.FILE_UNDERLYING,
@@ -100,16 +100,16 @@ with st.container():
                 """
                 progress_bar.progress(100)
                 st.markdown(
-                    '<div class="success-box">✅ Calibration terminée avec succès.</div>',
+                    '<div class="success-box">✅ Calibration completed ! Please feel free to use the pricer !</div>',
                     unsafe_allow_html=True
                 )
 
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
-        if st.button("🧹 Réinitialiser les paramètres en cache. Attention à recalibrer les modèles !"):
+        if st.button("🧹 Cache cleanning: becarefull to recalibrate models !"):
             from constants import clear_cache
             clear_cache()
             st.markdown(
-                    '<div class="success-box">✅ Cache Vidé !</div>',
+                    '<div class="success-box">✅ Cache cleaned !</div>',
                     unsafe_allow_html=True
                 )
