@@ -1,12 +1,15 @@
 import enum
+import os
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour modifier les constantes de base de l'appli---------------------
 #-------------------------------------------------------------------------------------------------------
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(APP_DIR, "data") + "\\"
 #Option market file path:
-FILE_PATH="data/options.csv"
+FILE_PATH=os.path.join(DATA_PATH, "options.csv")
 
 #Underlying product file path:
-FILE_UNDERLYING="data/underlying_prices.csv"
+FILE_UNDERLYING=os.path.join(DATA_PATH,"underlying_prices.csv")
 
 #_______________________________GENERAL UTILITIES CONSTANTS:_______________________________
 #Base type of interpolation for curves, will be used if not provided by the user.
@@ -37,7 +40,7 @@ INITIAL_NS = [1,1,1,1]
 TOLERANCE = 1e-8
 
 #Max iterations for the solver
-MAX_ITER = 1000
+MAX_ITER = 10
 
 #Bounds for the solver (volatility)
 BOUNDS = (1e-4, 5.0)
@@ -173,10 +176,10 @@ N_CORES=1
 
 #__________________________Heston simulation CONSTANTS:_______________________
 #Number of paths for the simulation
-NUMBER_PATHS_H = 10000
+NUMBER_PATHS_H=10
 
 #Number of steps for the simulation
-NB_STEPS_H=10000
+NB_STEPS_H=10
 
 #_______________________________GREEKS Constants:_______________________________
 #Method to generate Paths for the MC simulation on Heston model:
@@ -220,6 +223,7 @@ class Types(enum.Enum):
 CACHED_OBJECTS = {
     "DupireLocalVol": {},
     "SSVI": {},
+    "SVI_PARAMS": {},
     "SSVICalibration": {},
     "HestonHelper": {},
     "OptionMarket": {}

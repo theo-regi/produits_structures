@@ -13,10 +13,9 @@ from scipy.optimize import minimize
 from scipy.integrate import quad
 import numpy as np
 from abc import ABC, abstractmethod
-from utils import PaymentScheduleHandler, Rates_curve
-import utils as utils
-from models import BSM, Heston, Dupire
-from utils import ImpliedVolatilityFinder, SVIParamsFinder
+from scripts.utils import PaymentScheduleHandler, Rates_curve, ImpliedVolatilityFinder, SVIParamsFinder
+from scripts.models import BSM, Heston, Dupire
+import scripts.utils as utils
 import pandas as pd
 from scipy.stats import norm
 from collections import defaultdict
@@ -1197,35 +1196,6 @@ class Autocalls(EQDProduct):
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
 #de dividendes etc.
-#Les inputs dans le commentaires ne sont que des directions possibles.
-class Share():
-    """
-    Class for shares/stocks.
-
-    Parameters:
-    - spot price (float, non optional)
-    - dividend schedule (dict, optional) (voir si besoin de build un échéancier comme sur le FI / genre paiement annuel des divs à partir d'une date)
-    
-    Returns:
-    - Price of the share
-    - Dividend schedule
-    """
-    def __init__(self) -> None:
-        pass
-
-    @property
-    def spot_price(self) -> float:
-        """
-        Returns the spot price of the share.
-        """
-        return self._spot_price
-    
-    @property
-    def schedule_dividends(self) -> dict:
-        """
-        Returns the dividend schedule of the share.
-        """
-        return self._schedule_dividends
 
 #Classe gestion du marché des options: Ne pas bouger de fichier, obligé d'être ici pour éviter les appels en ronds.
 class OptionMarket:
@@ -1307,9 +1277,7 @@ class OptionMarket:
         - maturity (string, optional): maturity date of the options
         - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options (in % or 0.00 format)
         """
-        #Getting the spot
         self._spot = self._df_asset.loc[pd.to_datetime(price_date),"4. close"]
-
         #Taking correct options
         options_for_dates = self._options_matrices[price_date][maturity]
         options_for_moneyness = []
@@ -1381,6 +1349,9 @@ class OptionMarket:
         """
         options = self.get_options_for_moneyness(price_date, maturity, moneyness_bounds, calibrate_on_OTM, calibrate_on_volume, volume_bounds)
         return self._spot, options
+
+    def get_spot(self, price_date:str):
+        return self._df_asset.loc[pd.to_datetime(price_date),"4. close"]
 
 #Classe de calibration SSVI:
 class SSVICalibration:
@@ -1474,7 +1445,7 @@ class SSVICalibration:
             params = self._params[maturity_date]
             if params is not None: #np.log(1) = 0
                 atm_vol = np.sqrt((params[0] + params[1] * (params[2]*(-params[3]) + np.sqrt((-params[3])**2 + params[4]**2)))/self._maturities_t[maturity_date])
-                pricer = OptionPricer(self._pricing_date, maturity_date, OptionType.CALL, self._model, self._spot, self._spot, self._div_rate, rate=self._rate, sigma=atm_vol)
+                pricer = OptionPricer(start_date=self._pricing_date, end_date=maturity_date, type=OptionType.CALL, model=self._model, spot=self._spot, strike=self._spot, div_rate=self._div_rate, rate=self._rate, sigma=atm_vol)
                 prices[self._maturities_t[maturity_date]] = pricer.price
                 self._atm_options[maturity_date] = pricer.get_option()
         return prices
@@ -1603,6 +1574,12 @@ class DupireLocalVol:
         self._model = model
         self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
+        key = (model, data_path, file_name_underlying, pricing_date)
+        cached_dupire = get_from_cache("DupireLocalVol", key)
+        if cached_dupire is not None:
+            self.__dict__.update(cached_dupire.__dict__)
+            return
+
         key = (data_path,file_name_underlying)
         cached_om = get_from_cache("OptionMarket", key)
         if cached_om is None:
@@ -1624,8 +1601,18 @@ class DupireLocalVol:
         self._maturities_t = {}
         self._strikes_supported = []
         self._options_for_calibration = None
-        self._params = self._params_svis
+        
+        cache_key = ("SVI_PARAMS", model, data_path, file_name_underlying, pricing_date)
+        cached_params = get_from_cache("SVI_PARAMS", cache_key)
+
+        if cached_params is not None:
+            self._params = cached_params
+        else:
+            self._params = self._params_svis
+            set_in_cache("SVI_PARAMS", cache_key, self._params)
+        #self._params = self._params_svis
         self._implied_vol_df = self._build_implied_vol_matrix()
+        set_in_cache("DupireLocalVol", key, self)
 
     @property
     def _params_svis(self)->dict:
@@ -2049,7 +2036,7 @@ class OptionPricer:
             return Dupire(self._option, self._local_vol_model, self._nb_paths, self._nb_steps)
 
         else:
-            raise ValueError("Model not recognized")
+            raise ValueError(f"Model {self._model_name} not recognized!")
 
     def _update_model(self):
         self._model = self._build_model()
@@ -2154,26 +2141,6 @@ class AutocallPricer:
             npv, payoff, par_cpn, call_prob = self._option.price()
             return npv, payoff, par_cpn, call_prob
 
-    @property
-    def delta(self)->float:
-        return self._greek("delta")
-
-    @property
-    def gamma(self)->float:
-        return self._greek("gamma")
-
-    @property
-    def vega(self)->float:
-        return self._greek("vega")
-
-    @property
-    def theta(self)->float:
-        return self._greek("theta")
-
-    @property
-    def rho(self)->float:
-        return self._greek("rho")
-
     def _build_model(self):
         if self._model_name == "Black-Scholes-Merton":
             sigma = self._sigma if self._sigma is not None else BASE_SIGMA
@@ -2190,10 +2157,6 @@ class AutocallPricer:
 
     def _update_model(self):
         self._model = self._build_model()
-
-    def _greek(self, greek_name:str):
-        self._update_model()
-        return getattr(self._model, greek_name)(self._spot)
 
     def implied_vol(self, method:str=BASE_METHOD_VOL, tolerance:float=TOLERANCE, max_iter:float=MAX_ITER, bounds:tuple=BOUNDS, starting_point:float=STARTING_POINT) -> float:
         if self._price is None:

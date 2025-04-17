@@ -10,7 +10,7 @@ from scipy.optimize import fsolve, minimize
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-from functions import optimize_nelson_siegel,nelson_siegel
+from scripts.functions import optimize_nelson_siegel,nelson_siegel
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes utilitaires----------------------------
 #-------------------------------------------------------------------------------------------------------
