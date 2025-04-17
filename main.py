@@ -63,9 +63,10 @@ with st.container():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
-        available_dates = ["13/03/2025", "14/03/2025"] #"12/03/2025"
+        import pandas as pd
+        available_dates = ["12/03/2025","13/03/2025", "14/03/2025"] #"12/03/2025"
         selected_date = st.selectbox("Dates disponibles :", available_dates)
-        st.session_state["PRICING_DATE"] = selected_date
+        st.session_state.pricing_date = selected_date
 
         # Centrage horizontal du bouton de calibration
         st.markdown("<div style='display:flex; justify-content:center; margin-top:10px;'>", unsafe_allow_html=True)
@@ -83,7 +84,7 @@ with st.container():
                                     pricing_date=selected_date)
                 progress_bar.progress(33)
 
-                status_text.text("<span style='color:#002060;'>Étape 2/3 : Calibration volatilité locale en cours...")
+                status_text.text("<span style='color:#002060;'>Étape 2/3 : Calibration volatilité locale en cours...</span>")
                 dupire = DupireLocalVol(model="Black-Scholes-Merton",
                                         data_path=constants.FILE_PATH,
                                         file_name_underlying=constants.FILE_UNDERLYING,
@@ -91,7 +92,7 @@ with st.container():
                 progress_bar.progress(66)
 
                 """
-                status_text.text("<span style='color:#002060;'>Étape 3/3 : Calibration Heston en cours...")
+                status_text.text("<span style='color:#002060;'>Étape 3/3 : Calibration Heston en cours...</span>")
                 heston = HestonHelper(model="Black-Scholes-Merton",
                                     data_path=constants.FILE_PATH,
                                     file_name_underlying=constants.FILE_UNDERLYING,
@@ -108,4 +109,7 @@ with st.container():
         if st.button("🧹 Réinitialiser les paramètres en cache. Attention à recalibrer les modèles !"):
             from constants import clear_cache
             clear_cache()
-            st.success("Cache vidé.")
+            st.markdown(
+                    '<div class="success-box">✅ Cache Vidé !</div>',
+                    unsafe_allow_html=True
+                )

@@ -5,7 +5,7 @@ from constants import OptionType, BarrierType, AutocallsType, Types, BASE_SPOT, 
     BASE_SIGMA, BASE_METHOD_VOL, TOLERANCE, MAX_ITER, BOUNDS, STARTING_POINT, BASE_DELTA_K, BASE_LIMITS_K, \
     BASE_CALIBRATION_HESTON, BASE_MAX_T, BASE_T_INTERVAL, INITIAL_HESTON, HESTON_BOUNDS,\
     HESTON_CALIBRATION_OPTIONS, HESTON_METHOD, BASE_LIMITS_K_H, CUTOFF_H, N_CORES, NUMBER_PATHS_H,\
-    NB_STEPS_H, FILE_PATH, FILE_UNDERLYING, BASE_MODEL_AUTOCALLS, SOLVER_METHOD, get_from_cache, set_in_cache
+    NB_STEPS_H, FILE_PATH, FILE_UNDERLYING, BASE_MODEL_AUTOCALLS, SOLVER_METHOD, DICT_PRODUCT, get_from_cache, set_in_cache
 
 from joblib import Parallel, delayed
 from functools import lru_cache
@@ -1214,15 +1214,14 @@ class OptionMarket:
         self._df = pd.read_csv(self._filename, sep=";")
         self._dict_df = self._split_price_dates()
 
-        self._spot = None
-        self._options_matrices = self._build_options_matrix()
-
         key = (self._filename,self._filename_underlying)
         cached_om = get_from_cache("OptionMarket", key)
         if cached_om is None:
             cached_om = self
             set_in_cache("OptionMarket", key, cached_om)
-
+        else:
+            self._spot = None
+            self._options_matrices = self._build_options_matrix()
         pass
 
     def _split_price_dates(self):
@@ -1277,7 +1276,7 @@ class OptionMarket:
         - maturity (string, optional): maturity date of the options
         - moneyness_bounds (tuple, optional): tuple of min and max moneyness to filter the options (in % or 0.00 format)
         """
-        self._spot = self._df_asset.loc[pd.to_datetime(price_date),"4. close"]
+        self._spot = self._df_asset.loc[pd.to_datetime(price_date, format="%d/%m/%Y"),"4. close"]
         #Taking correct options
         options_for_dates = self._options_matrices[price_date][maturity]
         options_for_moneyness = []
@@ -1351,7 +1350,7 @@ class OptionMarket:
         return self._spot, options
 
     def get_spot(self, price_date:str):
-        return self._df_asset.loc[pd.to_datetime(price_date),"4. close"]
+        return self._df_asset.loc[pd.to_datetime(price_date, format=FORMAT_DATE),"4. close"]
 
 #Classe de calibration SSVI:
 class SSVICalibration:
@@ -1961,7 +1960,7 @@ class OptionPricer:
         if spot is None:
             data = pd.read_csv(self._file_name_underlying, sep=';', index_col=0)
             data.index = pd.to_datetime(data.index)
-            spot = data.loc[pd.to_datetime(self._start_date),"4. close"]
+            spot = data.loc[pd.to_datetime(self._start_date, format=FORMAT_DATE),"4. close"]
         self._spot = spot
 
         self._model_parameters = model_parameters
@@ -2180,21 +2179,6 @@ class AutocallPricer:
 #-------------------------------------------------------------------------------------------------------
 #-----------------------------------Script pour portefeuille de produits:-------------------------------
 #-------------------------------------------------------------------------------------------------------
-#We need to create / implement products here: digits / barriers / autocalls
-dict_products = {"Call": OptionType.CALL,
-                 "Put": OptionType.PUT,
-                 "Call Up and In": BarrierType.CALL_UP_IN,
-                 "Call Up and Out": BarrierType.CALL_UP_OUT,
-                 "Call Down and In": BarrierType.CALL_DOWN_IN,
-                 "Call Down and Out": BarrierType.CALL_DOWN_OUT,
-                 "Put Down and In": BarrierType.PUT_DOWN_IN,
-                 "Put Down and Out": BarrierType.PUT_DOWN_OUT,
-                 "Put Up and In": BarrierType.PUT_UP_IN,
-                 "Put Up and Out": BarrierType.PUT_UP_OUT,
-                 "Autocall": AutocallsType.AUTOCALL,
-                 "Athena Autocall": AutocallsType.ATHENA,
-                 "Phoenix Autocall": AutocallsType.PHOENIX,
-                 }
 
 #Option portolio for option strategies:
 class Portfolio:
@@ -2210,7 +2194,7 @@ class Portfolio:
         """
         Add a product to the portfolio.
         """
-        if type_product not in dict_products or model not in dict_models:
+        if type_product not in DICT_PRODUCT or model not in dict_models:
             raise ValueError(f"Product {type_product} or Model {model} not recognized.")
         else:
             key = (type_product, model, strike, start_date, end_date, barrier_strike, div_rate, rate, day_count, rolling_conv, notional, format_date, currency, sigma)
@@ -2219,7 +2203,7 @@ class Portfolio:
                     strike_effective=0.1
                 else: 
                     strike_effective = strike
-                option_pricer = OptionPricer(start_date, end_date, type=dict_products[type_product], barrier_strike=barrier_strike, model=model, spot=spot, strike=strike_effective, div_rate=div_rate, rate=rate, day_count=day_count, rolling_conv=rolling_conv, notional=notional, format_date=format_date, currency=currency, sigma=sigma, model_parameters=heston_parameters)
+                option_pricer = OptionPricer(start_date, end_date, type=DICT_PRODUCT[type_product], barrier_strike=barrier_strike, model=model, spot=spot, strike=strike_effective, div_rate=div_rate, rate=rate, day_count=day_count, rolling_conv=rolling_conv, notional=notional, format_date=format_date, currency=currency, sigma=sigma, model_parameters=heston_parameters)
                 self._portfolio[key] = {'pricer': option_pricer, 'quantity': quantity}
             else:
                 self._portfolio[key]['quantity'] += quantity

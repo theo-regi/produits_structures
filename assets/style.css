@@ -5,9 +5,14 @@
     font-family: "Arial", sans-serif;
 }
 
-/* Texte général en bleu Dauphine */
-html, body, [class*="css"] {
-    color: #002060; /* Bleu marine Dauphine */
+title, h1, h2, h3, h4, h5, h6 {
+    color: #002060; /* Dark Blue */
+}
+
+/* Couleur des labels de champs d'input Streamlit */
+label, .stTextInput label, .stNumberInput label, .stSelectbox label {
+    color: #002060 !important;
+    font-weight: 500;
 }
 
 /* Sidebar customization */
@@ -18,11 +23,6 @@ html, body, [class*="css"] {
 }
 
 .css-qri22k { /* Sidebar header */
-    color: #002060; /* Dark Blue */
-}
-
-/* Customize headers */
-title, h1, h2, h3, h4, h5, h6 {
     color: #002060; /* Dark Blue */
 }
 

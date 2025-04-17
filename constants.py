@@ -219,6 +219,23 @@ class Types(enum.Enum):
     AMERICAN = -1
     EUROPEAN = -2
 
+#We need to create / implement products here: digits / barriers / autocalls
+DICT_PRODUCT = {"Call": OptionType.CALL,
+                 "Put": OptionType.PUT,
+                 "Call Up and In": BarrierType.CALL_UP_IN,
+                 "Call Up and Out": BarrierType.CALL_UP_OUT,
+                 "Call Down and In": BarrierType.CALL_DOWN_IN,
+                 "Call Down and Out": BarrierType.CALL_DOWN_OUT,
+                 "Put Down and In": BarrierType.PUT_DOWN_IN,
+                 "Put Down and Out": BarrierType.PUT_DOWN_OUT,
+                 "Put Up and In": BarrierType.PUT_UP_IN,
+                 "Put Up and Out": BarrierType.PUT_UP_OUT,
+                 "Autocall": AutocallsType.AUTOCALL,
+                 "Athena Autocall": AutocallsType.ATHENA,
+                 "Phoenix Autocall": AutocallsType.PHOENIX,
+                 }
+
+
 #_______________________________CONSTANTS FOR CACHE:___________________________
 CACHED_OBJECTS = {
     "DupireLocalVol": {},
