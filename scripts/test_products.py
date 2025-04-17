@@ -472,7 +472,7 @@ class TestAutocalls(unittest.TestCase):
     
     def setUp(self):
         params = params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
-        """
+        
         self._pricer = AutocallPricer(
             start_date="13/03/2025",
             end_date="16/02/2027",
@@ -484,9 +484,10 @@ class TestAutocalls(unittest.TestCase):
             coupon_strike=1.0,
             protection=0.8,
             memory=True,
-            exercise_type=Types.AMERICAN,
+            exercise_type=Types.EUROPEAN,
+            frequency="monthly",
             currency="USD",
-            notional=100,
+            notional=1,
             model_parameters=params,
             nb_paths=1000,
             nb_steps=1000)
@@ -506,11 +507,11 @@ class TestAutocalls(unittest.TestCase):
             exercise_type=Types.EUROPEAN,
             frequency="quaterly",
             currency="USD",
-            notional=100,
+            notional=1,
             model_parameters=params,
-            nb_paths=1000,
-            nb_steps=1000)
-        
+            nb_paths=10000,
+            nb_steps=10000)
+        """
         pass
 
     def test_price(self):

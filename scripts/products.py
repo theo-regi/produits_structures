@@ -998,6 +998,8 @@ class Autocalls(EQDProduct):
         """
         cp = self._coupon
         npv, payoff = self.npv
+        #df_payoff = pd.DataFrame(payoff)
+        #df_payoff.to_excel("test_payoff.xlsx")
         call_prob = self._call_probability_curve()
         par_cpn = self._calculate_par_coupon()
         self._coupon=cp
@@ -1024,9 +1026,9 @@ class Autocalls(EQDProduct):
         n_paths, n_steps = spots.shape
 
         if self._type_opt == Types.AMERICAN:
-            cpn = self._coupon * (self.T / (n_steps - 1))
+            cpn = self._coupon * (self.T / (n_steps - 1)) * self._notional
         else:
-            cpn = self._coupon * (self.T/len(self._paiments_schedule))
+            cpn = self._coupon * (self.T/len(self._paiments_schedule)) * self._notional
             step_indices = [np.argmin(np.abs(time - sched)) for sched in self._paiments_schedule]
 
         coupons = np.zeros_like(spots)
@@ -1081,7 +1083,7 @@ class Autocalls(EQDProduct):
             return payoffs
         
         elif self._type_opt == Types.EUROPEAN:
-            for step in step_indices:
+            for j, step in enumerate(step_indices):
                 barrier = np.ones(n_paths) * self._barriers[step]
                 c_barrier = np.ones(n_paths) * self._coupon_strike[step]
                 act_spots = spots[:,step]
@@ -1105,7 +1107,7 @@ class Autocalls(EQDProduct):
                     payoffs[redeem, step] += self._notional
                     coupons[redeem, step+1:] = 0
                 else:
-                    coupons[redeem] = cpn * step
+                    coupons[redeem] = cpn * (j+1)
                     payoffs[redeem, step] = self._notional + coupons[redeem, step]
                 
                 flag[redeem] = True
@@ -1159,7 +1161,7 @@ class Autocalls(EQDProduct):
             self._coupon = coupon
             npv, payoff = self.npv
             self._coupon = mem_cpn
-            return (100-npv)**2
+            return (self._notional-npv)**2
 
         result = minimize(objective, self._coupon, method=SOLVER_METHOD, bounds=[(0, 1)])
         if result.success:
@@ -2129,7 +2131,7 @@ class AutocallPricer:
 
         self._option = Autocalls(start_date=self._start_date, end_date=self._end_date, type=self._type,\
                                      strike=self._strike, final_strike=self._final_strike, coupon=self._coupon, coupon_strike=self._coupon_strike, \
-                                     protection=self._protection_capital, memory=self._memory, type_opt=self._exercise_type, frequency=self._frequency)
+                                     protection=self._protection_capital, memory=self._memory, type_opt=self._exercise_type, frequency=self._frequency, notional=self._notional)
 
         self._local_vol_model = None
         if self._model_name == "Dupire":
