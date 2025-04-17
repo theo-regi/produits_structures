@@ -2,7 +2,7 @@ import numpy as np
 import unittest
 from products import ZCBond, FixedLeg, FloatLeg,\
     Swap, VanillaOption, OptionMarket, SSVICalibration,\
-    OptionPricer, DupireLocalVol, HestonHelper, Portfolio, VAutocallPricer, AutocallPricer
+    OptionPricer, DupireLocalVol, HestonHelper, Portfolio, AutocallPricer, AutocallPricer
 
 from utils import Rates_curve
 from constants import OptionType, BarrierType, AutocallsType, Types
@@ -467,59 +467,64 @@ class TestPortfolio(unittest.TestCase):
 
 class TestAutocalls(unittest.TestCase):
     """
-    Class to test both VAutocallPricer and Autocalls class:
+    Class to test both AutocallPricer and Autocalls class:
     """
     
     def setUp(self):
         params = params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
         """
-        self._pricer = VAutocallPricer(
+        self._pricer = AutocallPricer(
             start_date="13/03/2025",
-            end_date="16/05/2025",
+            end_date="16/02/2027",
             type=AutocallsType.PHOENIX,
             model="Heston",
             spot=209.68,
             strike=1.2,
-            coupon=0.05,
+            coupon=0.1,
+            coupon_strike=1.0,
             protection=0.8,
             memory=True,
             exercise_type=Types.AMERICAN,
             currency="USD",
             notional=100,
             model_parameters=params,
-            nb_paths=100,
-            nb_steps=100)"""
-        
-        self._pricer = VAutocallPricer(
+            nb_paths=1000,
+            nb_steps=1000)
+        """
+        self._pricer = AutocallPricer(
             start_date="13/03/2025",
-            end_date="16/05/2025",
+            end_date="16/02/2027",
             type=AutocallsType.AUTOCALL,
             model="Heston",
             spot=209.68,
-            strike=1.2,
-            final_strike=1.0,
+            strike=1.5,
+            final_strike=1.5,
             coupon_strike=0.9,
             coupon=0.05,
-            protection=0.8,
-            memory=True,
-            exercise_type=Types.AMERICAN,
+            protection=0.5,
+            memory=False,
+            exercise_type=Types.EUROPEAN,
+            frequency="quaterly",
             currency="USD",
             notional=100,
             model_parameters=params,
-            nb_paths=100,
-            nb_steps=100)
+            nb_paths=1000,
+            nb_steps=1000)
+        
         pass
 
     def test_price(self):
         npv, payoff, par_cpn, call_prob = self._pricer.price
-        print(payoff)
+        #print(payoff)
         print(npv)
         print(par_cpn)
-        print(np.cumsum(list(call_prob.values())))
-        #plt.scatter(spots, payoff, label='Autocall Payoff', s=10)
-        #plt.show()
-        #self.assertAlmostEqual(price, 12.17, places=1)
-        #self.assertEqual(isinstance(payoffs, list), True)
+
+        import pandas as pd
+        call_prob=pd.DataFrame(call_prob, columns=["YearFraction", "CumulativeProbability"])
+        print(call_prob)
+        plt.scatter(call_prob['YearFraction'], call_prob['CumulativeProbability'], label='Call Probability', s=10)
+        plt.xlabel("Time")
+        plt.show()
         pass
 
 if __name__ == "__main__":

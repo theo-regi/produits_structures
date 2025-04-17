@@ -998,9 +998,7 @@ class Autocalls(EQDProduct):
         """
         cp = self._coupon
         npv, payoff = self.npv
-        #df_payoffs= pd.DataFrame(payoff)
-        #df_payoffs.to_excel("test_payoffs.xlsx")
-        call_prob = self._call_probability_distribution()
+        call_prob = self._call_probability_curve()
         par_cpn = self._calculate_par_coupon()
         self._coupon=cp
         return npv, payoff, par_cpn, call_prob
@@ -1025,7 +1023,12 @@ class Autocalls(EQDProduct):
         spots = self._paths['Spots']
         n_paths, n_steps = spots.shape
 
-        cpn = self._coupon / (n_steps-1)
+        if self._type_opt == Types.AMERICAN:
+            cpn = self._coupon * (self.T / (n_steps - 1))
+        else:
+            cpn = self._coupon * (self.T/len(self._paiments_schedule))
+            step_indices = [np.argmin(np.abs(time - sched)) for sched in self._paiments_schedule]
+
         coupons = np.zeros_like(spots)
         memory = np.zeros(n_paths) if self._memory and self._type == AutocallsType.PHOENIX else None
         payoffs = np.zeros_like(spots)
@@ -1045,14 +1048,15 @@ class Autocalls(EQDProduct):
                         memory[eligible_for_coupon] = 0
                         memory[~eligible_for_coupon] += cpn
                     else:
-                        coupons[:, i][eligible_for_coupon] = cpn
+                        coupons[:, i][eligible_for_coupon] = cpn                
+                    payoffs[:, i] = coupons[:,i]
                 else:
                     eligible_for_coupon = (act_spots >= c_barrier) & (~flag)
                     coupons[eligible_for_coupon] += cpn
                 
                 redeem = (act_spots >= barrier) & (~flag)
                 if self._type == AutocallsType.PHOENIX:
-                    payoffs[redeem, i] = self._notional
+                    payoffs[redeem, i] += self._notional
                     coupons[redeem, i+1:] = 0
                 else:
                     coupons[redeem] = cpn * i
@@ -1067,20 +1071,60 @@ class Autocalls(EQDProduct):
 
             protected = final_spots >= self._protection
             non_protected = final_spots < self._protection
-
             if self._type == AutocallsType.PHOENIX:
-                discounted_coupons = coupons * np.exp(-self._rate * time[np.newaxis, :])
-                coupon_leg = np.sum(discounted_coupons, axis=1)
                 payoffs[:, -1][no_redeemed & protected] = self._notional
                 payoffs[:, -1][no_redeemed & non_protected] = self._notional *(final_spots[no_redeemed & non_protected] / final_barrier)
-                payoffs[:, -1][no_redeemed] += coupon_leg[no_redeemed]
+                payoffs[:, -1][no_redeemed] += coupons[:,-1][no_redeemed]
             else:
                 payoffs[:, -1][no_redeemed & protected] = self._notional + cpn * (n_steps - 1)
                 payoffs[:, -1][no_redeemed & non_protected] = self._notional * (final_spots[no_redeemed & non_protected] / final_barrier)
             return payoffs
         
         elif self._type_opt == Types.EUROPEAN:
-            pass
+            for step in step_indices:
+                barrier = np.ones(n_paths) * self._barriers[step]
+                c_barrier = np.ones(n_paths) * self._coupon_strike[step]
+                act_spots = spots[:,step]
+
+                eligible_for_coupon = (act_spots >= c_barrier) & (~flag)
+                if self._type == AutocallsType.PHOENIX:
+                    if self._memory:
+                        coupons[:, step][eligible_for_coupon] = cpn + memory[eligible_for_coupon]
+                        memory[eligible_for_coupon] = 0
+                        memory[~eligible_for_coupon] += cpn
+                    else:
+                        coupons[:, step][eligible_for_coupon] = cpn                
+                    payoffs[:, step] = coupons[:,step]
+
+                else:
+                    eligible_for_coupon = (act_spots >= c_barrier) & (~flag)
+                    coupons[eligible_for_coupon] += cpn
+
+                redeem = (act_spots >= barrier) & (~flag)
+                if self._type == AutocallsType.PHOENIX:
+                    payoffs[redeem, step] += self._notional
+                    coupons[redeem, step+1:] = 0
+                else:
+                    coupons[redeem] = cpn * step
+                    payoffs[redeem, step] = self._notional + coupons[redeem, step]
+                
+                flag[redeem] = True
+                self.call_counts[step] = np.sum(redeem)
+
+            final_spots=spots[:,-1]
+            final_barrier = self._barriers[-1]
+            no_redeemed= ~flag
+
+            protected = final_spots >= self._protection
+            non_protected = final_spots < self._protection
+            if self._type == AutocallsType.PHOENIX:
+                payoffs[:, -1][no_redeemed & protected] = self._notional
+                payoffs[:, -1][no_redeemed & non_protected] = self._notional *(final_spots[no_redeemed & non_protected] / final_barrier)
+                payoffs[:, -1][no_redeemed] += coupons[:,-1][no_redeemed]
+            else:
+                payoffs[:, -1][no_redeemed & protected] = self._notional + cpn * (n_steps - 1)
+                payoffs[:, -1][no_redeemed & non_protected] = self._notional * (final_spots[no_redeemed & non_protected] / final_barrier)
+            return payoffs
         else:
             ValueError(f"Type of exercize: {self._type_opt} not recognize!")
         pass
@@ -1115,7 +1159,7 @@ class Autocalls(EQDProduct):
             self._coupon = coupon
             npv, payoff = self.npv
             self._coupon = mem_cpn
-            return npv
+            return (100-npv)**2
 
         result = minimize(objective, self._coupon, method=SOLVER_METHOD, bounds=[(0, 1)])
         if result.success:
@@ -1127,6 +1171,23 @@ class Autocalls(EQDProduct):
         """Return a dictionary of call step -> probability of being autocalled."""
         n_paths = self._paths['Spots'].shape[0]
         return {i: self.call_counts[i] / n_paths for i in range(len(self.call_counts)) if self.call_counts[i] > 0}
+
+    def _call_probability_curve(self):
+        """
+        Returns a list of (year_fraction, cumulative_probability) sorted by time step.
+        """
+        call_prob = self._call_probability_distribution()
+        time_grid = self._paths['time']
+        
+        cumulative = 0.0
+        result = []
+
+        for step in sorted(call_prob.keys()):
+            cumulative += call_prob[step]
+            year_fraction = time_grid[step]
+            result.append((year_fraction, cumulative))
+
+        return result
 
     def __deep_copy__(self):
         return Autocalls(self._start_date, self._end_date, self._type, self._strike, self._final_strike, self._coupon, self._protection, self._type_opt, self._rate, self._day_count, self._rolling_conv, self._frequency, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
@@ -2015,14 +2076,14 @@ class OptionPricer:
     def get_option(self):
         return self._option
 
-#Vanilla Autocall:
-class VAutocallPricer:
+#Autocall:
+class AutocallPricer:
     """
     Autocal pricing engine.
     """
     def __init__(self, start_date:str, end_date:str, type:str=AutocallsType.AUTOCALL, model:str=BASE_MODEL_AUTOCALLS,
                  spot:float = None, strike: float = BASE_STRIKE, final_strike:float = None, coupon:float=None, coupon_strike:float=None,
-                 protection:float=None, memory:bool=True, exercise_type:float=None, div_rate: float = BASE_DIV_RATE, 
+                 protection:float=None, memory:bool=True, exercise_type:float=None, frequency:str=None, div_rate: float = BASE_DIV_RATE, 
                  day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
                  notional: float = BASE_NOTIONAL, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
                  sigma: float = None, rate: float = BASE_RATE, model_parameters: dict = None, nb_paths: float = NUMBER_PATHS_H, nb_steps: float = NB_STEPS_H,
@@ -2034,6 +2095,7 @@ class VAutocallPricer:
         self._model_name = model
         self._start_date = start_date
         self._end_date = end_date
+        self._frequency = frequency
         self._type = type
         self._strike = strike
         self._final_strike = final_strike
@@ -2067,7 +2129,7 @@ class VAutocallPricer:
 
         self._option = Autocalls(start_date=self._start_date, end_date=self._end_date, type=self._type,\
                                      strike=self._strike, final_strike=self._final_strike, coupon=self._coupon, coupon_strike=self._coupon_strike, \
-                                     protection=self._protection_capital, memory=self._memory, type_opt=self._exercise_type)
+                                     protection=self._protection_capital, memory=self._memory, type_opt=self._exercise_type, frequency=self._frequency)
 
         self._local_vol_model = None
         if self._model_name == "Dupire":
@@ -2151,21 +2213,6 @@ class VAutocallPricer:
     def get_option(self):
         return self._option
 
-#Auto call pricer for Athenas and Phoenix (differentiated because slightly different mechanisms):
-class AutocallPricer:
-    """
-    Autocal pricing engine.
-    """
-    def __init__(self, start_date:str, end_date:str, type:str=AutocallsType.ATHENA, model:str=BASE_MODEL_AUTOCALLS,
-                 spot:float = None, strike: float = BASE_STRIKE, auto_call_strike:float=None, \
-                 div_rate: float = BASE_DIV_RATE,\
-                 day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
-                 notional: float = BASE_NOTIONAL, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
-                 sigma: float = None, rate: float = BASE_RATE, price: float = None,
-                 model_parameters: dict = None, nb_paths: float = NUMBER_PATHS_H, nb_steps: float = NB_STEPS_H,
-                 data_path: str = FILE_PATH, file_name_underlying: str = FILE_UNDERLYING) -> None:
-
-        pass
 #-------------------------------------------------------------------------------------------------------
 #-----------------------------------Script pour portefeuille de produits:-------------------------------
 #-------------------------------------------------------------------------------------------------------
