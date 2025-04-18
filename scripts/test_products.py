@@ -458,7 +458,7 @@ class TestPortfolio(unittest.TestCase):
         self.ptf._add_product("Put", "13/03/2025", "16/05/2025", 1, 210, 180, "Heston", notional=1, heston_parameters=params)
 
     def test_price_portfolio(self):
-        price, payoffs, spots = self.ptf.price_portfolio()
+        price, npvs, payoffs, spots = self.ptf.price_portfolio()
         plt.scatter(spots, payoffs, label='Payoff', s=10)
         plt.show()
         self.assertAlmostEqual(price, 12.17, places=1)

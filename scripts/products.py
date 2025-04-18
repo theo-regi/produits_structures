@@ -1378,6 +1378,7 @@ class SSVICalibration:
         cached_om = get_from_cache("OptionMarket", cache_key)
         if cached_om is None:
             self._option_market = OptionMarket(data_path, file_name_underlying)
+            cached_om = self._option_market
             set_in_cache("OptionMarket", cache_key, cached_om)
         else:
             self._option_market = cached_om
@@ -1569,6 +1570,53 @@ class DupireLocalVol:
     Class for local volatility parametrization, used to calibrate / fit local volatility surface.
     """
     def __init__(self, model:str, data_path:str, file_name_underlying:str, pricing_date:str, moneyness_level:tuple=BOUNDS_MONEYNESS, OTM_calibration:bool=OTM_CALIBRATION, div_rate:float=BASE_DIV_RATE, currency:str=BASE_CURRENCY, rate:float=BASE_RATE, delta_k:float=BASE_DELTA_K, limits_K:tuple=BASE_LIMITS_K) -> None:
+        cache_key = (data_path, file_name_underlying)
+
+        cached_dupire = get_from_cache("DupireLocalVol", cache_key)
+        if cached_dupire is not None:
+            self._params = cached_dupire._params
+            self._implied_vol_df = cached_dupire._implied_vol_df
+            self._strikes_supported = cached_dupire._strikes_supported
+            self._maturities_t = cached_dupire._maturities_t
+            self._options_for_calibration = cached_dupire._options_for_calibration
+        else:
+            self._params = None
+            self._implied_vol_df = None
+            self._strikes_supported = []
+            self._maturities_t = {}
+            self._options_for_calibration = None
+        
+        self._model = model
+        self._model_obj = dict_models[model]
+        self._pricing_date = pricing_date
+        self._moneyness_level = moneyness_level
+        self._OTM_calibration = OTM_calibration
+        self._div_rate = div_rate
+        self._currency = currency
+        self._rate = rate
+        self._delta_K = delta_k
+        self._limits_K = limits_K
+        
+        cache_key = (data_path, file_name_underlying)
+        self._option_market = get_from_cache("OptionMarket", cache_key)
+        if self._option_market is None:
+            self._option_market = OptionMarket(data_path, file_name_underlying)
+            set_in_cache("OptionMarket", cache_key, self._option_market)
+
+        self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())[:-1]
+        self._spot = self._option_market.get_spot(self._pricing_date)
+
+        if cached_dupire is None:
+            self._params = self._params_svis
+            set_in_cache("SVI_PARAMS", cache_key, self)
+
+            self._implied_vol_df = self._build_implied_vol_matrix()
+            set_in_cache("Vol_matrix", cache_key, self._implied_vol_df)
+
+            set_in_cache("DupireLocalVol", cache_key, self)
+        pass
+
+        """
         self._model = model
         self._model_obj = dict_models[model]
         self._pricing_date = pricing_date
@@ -1607,11 +1655,18 @@ class DupireLocalVol:
         else:
             self._params = self._params_svis
             set_in_cache("SVI_PARAMS", cache_key, self._params)
-        #self._params = self._params_svis
-        self._implied_vol_df = self._build_implied_vol_matrix()
-        cache_key = (data_path, file_name_underlying)
-        set_in_cache("DupireLocalVol", cache_key, self)
 
+        cached_matrix = get_from_cache("Vol_matrix", cache_key)
+        if cached_matrix is None:
+            self._implied_vol_df = self._build_implied_vol_matrix()
+            set_in_cache("Vol_matrix", cache_key, self._implied_vol_df)
+        else:
+            self._implied_vol_df = cached_matrix
+        
+        cache_key = (data_path, file_name_underlying)
+        print("✅" , cache_key)
+        set_in_cache("DupireLocalVol", cache_key, self)
+        """
     @property
     def _params_svis(self)->dict:
         """
@@ -2214,12 +2269,14 @@ class Portfolio:
         pass
 
     def price_portfolio(self):
-        sum_npv=0
+        npvs=[]
         pay_offs=[]
         spots=[]
+
         for key, item in self._portfolio.items():
             pricer = item['pricer']
-            sum_npv+=pricer.price*item['quantity']
+            price = pricer.price*item['quantity']
+            npvs.append(price)
             pay_offs.extend([x * item['quantity'] for x in pricer._payoff])
             spots.extend(pricer._spots_paths)
-        return sum_npv, pay_offs, spots
+        return sum(npvs), npvs, pay_offs, spots

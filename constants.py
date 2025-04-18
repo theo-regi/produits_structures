@@ -40,7 +40,7 @@ INITIAL_NS = [1,1,1,1]
 TOLERANCE = 1e-8
 
 #Max iterations for the solver
-MAX_ITER = 10
+MAX_ITER = 100
 
 #Bounds for the solver (volatility)
 BOUNDS = (1e-4, 5.0)
@@ -174,12 +174,12 @@ else: CUTOFF_H=0.5
 #Number of cores to use for parallelization:
 N_CORES=1
 
-#__________________________Heston simulation CONSTANTS:_______________________
+#__________________________Simulation CONSTANTS:_______________________
 #Number of paths for the simulation
-NUMBER_PATHS_H=10
+NUMBER_PATHS_H=1000
 
 #Number of steps for the simulation
-NB_STEPS_H=10
+NB_STEPS_H=1000
 
 #_______________________________GREEKS Constants:_______________________________
 #Method to generate Paths for the MC simulation on Heston model:
@@ -259,7 +259,8 @@ CACHED_OBJECTS = {
     "SVI_PARAMS": {},
     "SSVICalibration": {},
     "HestonHelper": {},
-    "OptionMarket": {}
+    "OptionMarket": {},
+    "Vol_matrix": {},
 }
 
 def clear_cache():
