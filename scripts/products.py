@@ -13,7 +13,7 @@ from scipy.optimize import minimize
 from scipy.integrate import quad
 import numpy as np
 from abc import ABC, abstractmethod
-from scripts.utils import PaymentScheduleHandler, Rates_curve, ImpliedVolatilityFinder, SVIParamsFinder
+from scripts.utils import PaymentScheduleHandler, Rates_curve, ImpliedVolatilityFinder, SVIParamsFinder, get_heston_params_from_csv
 from scripts.models import BSM, Heston, Dupire
 import scripts.utils as utils
 import pandas as pd
@@ -1608,7 +1608,7 @@ class DupireLocalVol:
 
         if cached_dupire is None:
             self._params = self._params_svis
-            set_in_cache("SVI_PARAMS", cache_key, self)
+            set_in_cache("SVI_PARAMS", cache_key, self._params)
 
             self._implied_vol_df = self._build_implied_vol_matrix()
             set_in_cache("Vol_matrix", cache_key, self._implied_vol_df)
@@ -1616,57 +1616,6 @@ class DupireLocalVol:
             set_in_cache("DupireLocalVol", cache_key, self)
         pass
 
-        """
-        self._model = model
-        self._model_obj = dict_models[model]
-        self._pricing_date = pricing_date
-        cache_key = (data_path, file_name_underlying)
-        cached_dupire = get_from_cache("DupireLocalVol", cache_key)
-        if cached_dupire is not None:
-            self.__dict__.update(cached_dupire.__dict__)
-        
-        cache_key = (data_path,file_name_underlying)
-        cached_om = get_from_cache("OptionMarket", cache_key)
-        if cached_om is None:
-            cached_om = OptionMarket(data_path, file_name_underlying)
-            set_in_cache("OptionMarket", cache_key, cached_om)
-        
-        self._option_market = cached_om
-        self._maturities = list(self._option_market._options_matrices[self._pricing_date].keys())[:-1]
-        self._moneyness_level = moneyness_level
-        self._OTM_calibration = OTM_calibration
-
-        self._div_rate = div_rate
-        self._currency = currency
-        self._rate = rate
-        self._spot = None
-        self._delta_K = delta_k
-        self._limits_K = limits_K
-
-        self._maturities_t = {}
-        self._strikes_supported = []
-        self._options_for_calibration = None
-        
-        cache_key = (data_path, file_name_underlying)
-        cached_params = get_from_cache("SVI_PARAMS", cache_key)
-
-        if cached_params is not None:
-            self._params = cached_params
-        else:
-            self._params = self._params_svis
-            set_in_cache("SVI_PARAMS", cache_key, self._params)
-
-        cached_matrix = get_from_cache("Vol_matrix", cache_key)
-        if cached_matrix is None:
-            self._implied_vol_df = self._build_implied_vol_matrix()
-            set_in_cache("Vol_matrix", cache_key, self._implied_vol_df)
-        else:
-            self._implied_vol_df = cached_matrix
-        
-        cache_key = (data_path, file_name_underlying)
-        print("✅" , cache_key)
-        set_in_cache("DupireLocalVol", cache_key, self)
-        """
     @property
     def _params_svis(self)->dict:
         """
@@ -2017,7 +1966,13 @@ class OptionPricer:
             spot = data.loc[pd.to_datetime(self._start_date, format=FORMAT_DATE),"4. close"]
         self._spot = spot
 
-        self._model_parameters = model_parameters
+        if model_parameters is not None:
+            self._model_parameters = model_parameters
+        elif self._model_name == "Heston":
+            self._model_parameters = get_heston_params_from_csv(self._start_date)
+        else:
+            self._model_parameters = None
+
         self._nb_paths = nb_paths
         self._nb_steps = nb_steps
         self._spots_paths = None
@@ -2161,7 +2116,13 @@ class AutocallPricer:
             spot = data.loc[pd.to_datetime(self._start_date),"4. close"]
         self._spot = spot
 
-        self._model_parameters = model_parameters
+        if model_parameters is not None:
+            self._model_parameters = model_parameters
+        elif self._model_name == "Heston":
+            self._model_parameters = get_heston_params_from_csv(self._start_date)
+        else:
+            self._model_parameters = None
+
         self._nb_paths = nb_paths
         self._nb_steps = nb_steps
         self._spots_paths = None

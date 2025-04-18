@@ -16,6 +16,7 @@ import streamlit as st
 from PIL import Image
 import base64
 from scripts.products import SSVICalibration, DupireLocalVol, HestonHelper
+from scripts.utils import get_heston_params_from_csv
 import constants
 from constants import clear_cache
 
@@ -99,14 +100,11 @@ with st.container():
                                         pricing_date=selected_date)
                 progress_bar.progress(66)
 
-                """
-                status_text.markdown("<span style='color:#002060;'>Étape 3/3 : Heston Model Calibration...</span>", unsafe_allow_html=True)
-                heston = HestonHelper(model="Black-Scholes-Merton",
-                                    data_path=constants.FILE_PATH,
-                                    file_name_underlying=constants.FILE_UNDERLYING,
-                                    pricing_date=selected_date)
-                """
+               
+                status_text.markdown("<span style='color:#002060;'>Étape 3/3 : Loading Heston Model Parameters...</span>", unsafe_allow_html=True)
+                params = get_heston_params_from_csv(selected_date)
                 progress_bar.progress(100)
+                
                 st.markdown(
                     '<div class="success-box">✅ Calibration completed ! Please feel free to use the pricer !</div>',
                     unsafe_allow_html=True

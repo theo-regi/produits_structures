@@ -1,4 +1,4 @@
-from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI, OPTIONS_SOLVER_SVI
+from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI, OPTIONS_SOLVER_SVI, FILE_PATH, FILE_UNDERLYING, DATA_PATH, FORMAT_DATE
 
 from datetime import datetime as dt
 from datetime import timedelta
@@ -9,6 +9,7 @@ import numpy as np
 from scipy.optimize import fsolve, minimize
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
+import os
 
 from scripts.functions import optimize_nelson_siegel,nelson_siegel
 #-------------------------------------------------------------------------------------------------------
@@ -655,3 +656,21 @@ def calculate_yield(cashflows: dict, market_price:float, initial_rate:float=INIT
     
     ytm_solution = fsolve(ytm, initial_rate)[0]
     return ytm_solution*100
+
+#Helper to import heston pre-calibrated parameters
+def get_heston_params_from_csv(pricing_date, path=os.path.join(DATA_PATH, "heston_params.csv")):
+    from constants import get_from_cache, set_in_cache
+    key = (FILE_PATH, FILE_UNDERLYING)
+    cached = get_from_cache("HestonParams", key)
+    if cached is not None:
+        return cached
+
+    df = pd.read_csv(path, index_col=0, sep=';')
+    df.index = pd.to_datetime(df.index, format=FORMAT_DATE)
+    match = df.loc[[pd.to_datetime(pricing_date, format=FORMAT_DATE)]]
+    if match.empty:
+        raise ValueError(f"No Heston parameters found for {pricing_date}")
+
+    params = match.iloc[0][["v0", "kappa", "theta", "eta", "rho"]].to_dict()
+    set_in_cache("HestonParams", key, params)
+    return params

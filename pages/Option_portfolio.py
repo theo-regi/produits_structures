@@ -4,7 +4,7 @@ from scripts.products import Portfolio, OptionMarket
 import pandas as pd
 import matplotlib.pyplot as plt
 #-----------------------------------------------------------------------------------------------------
-#------------------------------------Page construction du portefeuill---------------------------------
+#------------------------------------Page construction du portefeuille---------------------------------
 #-----------------------------------------------------------------------------------------------------
 #______________________________________INITIALISATION PAGE____________________________________________
 STYLE_PATH=st.session_state.STYLE_PATH
@@ -118,7 +118,7 @@ with tab2:
         st.markdown("### 📋 Priced Portfolio Breakdown")
         st.dataframe(df, use_container_width=True)
 
-        col1, col2, col3 = st.columns([1, 2, 1])
+        col1, col2, col3 = st.columns([2, 2, 2])
         with col1:
             # Plot payoff vs. spot
             st.markdown("### 📈 Payoff vs. Spot")
