@@ -408,7 +408,7 @@ class TestHestonPricing(unittest.TestCase):
 
     def test_vega(self):
         vega = self.pricer.vega
-        self.assertAlmostEqual(vega, 3.5, places=1)
+        self.assertAlmostEqual(vega, 3.5/100, places=1)
 
     def test_theta(self):
         theta = self.pricer.theta
@@ -416,7 +416,7 @@ class TestHestonPricing(unittest.TestCase):
     
     def test_rho(self):
         rho = self.pricer.rho
-        self.assertAlmostEqual(rho, 17.17, places=1)
+        self.assertAlmostEqual(rho, 17.17/100, places=1)
 
 class TestDupireDiffusion(unittest.TestCase):
     def setUp(self):

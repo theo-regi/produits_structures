@@ -837,6 +837,24 @@ class VanillaOption(EQDProduct):
     def __deep_copy__(self):
         return VanillaOption(self._start_date, self._end_date, self._type, self._strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
 
+    def __rebuild__(self):
+        self.__init__(
+            start_date=self._start_date, 
+            end_date=self._end_date, 
+            type=self._type, 
+            strike=self._strike, 
+            rate=self._rate, 
+            day_count=self._day_count, 
+            rolling_conv=self._rolling_conv, 
+            notional=self._notional, 
+            format_date=self._format, 
+            currency=self._currency, 
+            div_rate=self._div_rate, 
+            price=self._price, 
+            volume=self._volume
+        )
+        pass
+
 #Class for barriers options
 class BarrierOption(EQDProduct):
     """
@@ -933,6 +951,25 @@ class BarrierOption(EQDProduct):
 
     def __deep_copy__(self):
         return BarrierOption(self._start_date, self._end_date, self._type, self._strike, self._barrier_strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
+
+    def __rebuild__(self):
+        self.__init__(
+        start_date=self._start_date,
+        end_date=self._end_date, 
+        type=self._type, 
+        strike=self._strike, 
+        barrier_strike=self._barrier_strike, 
+        rate=self._rate, 
+        day_count=self._day_count, 
+        rolling_conv=self._rolling_conv, 
+        notional=self._notional, 
+        format_date=self._format, 
+        currency=self._currency, 
+        div_rate=self._div_rate, 
+        price=self._price, 
+        volume=self._volume
+        )
+        pass
 
 #Vanilla Autocalls
 class Autocalls(EQDProduct):
@@ -1192,7 +1229,53 @@ class Autocalls(EQDProduct):
         return result
 
     def __deep_copy__(self):
-        return Autocalls(self._start_date, self._end_date, self._type, self._strike, self._final_strike, self._coupon, self._protection, self._type_opt, self._rate, self._day_count, self._rolling_conv, self._frequency, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
+        return Autocalls(start_date=self._start_date, 
+                         end_date=self._end_date, 
+                         type=self._type,
+                         strike=self._strike, 
+                         final_strike=self._final_strike, 
+                         coupon=self._coupon, 
+                         coupon_strike=self._coupon_strike, 
+                         protection=self._protection, 
+                         memory=self._memory, 
+                         type_opt=self._type_opt, 
+                         rate=self._rate, 
+                         day_count=self._day_count, 
+                         rolling_conv=self._rolling_conv, 
+                         frequency=self._periodicity, 
+                         notional=self._notional, 
+                         format_date=self._format, 
+                         currency=self._currency, 
+                         div_rate=self._div_rate, 
+                         price=self._price, 
+                         volume=self._volume)
+    pass
+
+    def __rebuild__(self):
+        self.__init__(
+        start_date=self._start_date, 
+        end_date=self._end_date, 
+        type=self._type, 
+        strike=self._strike, 
+        final_strike=self._final_strike, 
+        coupon=self._coupon, 
+        coupon_strike=self._coupon_strike, 
+        protection=self._protection, 
+        memory=self._memory, 
+        type_opt=self._type_opt, 
+        rate=self._rate, 
+        day_count=self._day_count, 
+        rolling_conv=self._rolling_conv, 
+        frequency=self._periodicity, 
+        notional=self._notional, 
+        format_date=self._format, 
+        currency=self._currency, 
+        div_rate=self._div_rate, 
+        price=self._price, 
+        volume=self._volume
+        )
+        pass
+
 
 #Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
 #Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
@@ -2246,3 +2329,5 @@ class Portfolio:
             spots.extend(pricer._spots_paths)
         return sum(npvs), npvs, pay_offs, spots
     
+    def __deep_copy__(self):
+        return Portfolio(self._portfolio)

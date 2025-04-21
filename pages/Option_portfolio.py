@@ -17,7 +17,7 @@ def apply_css(STYLE_PATH):
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 apply_css(STYLE_PATH)
 
-tab1, tab2 = st.tabs(["📋 Build & Manage Portfolio", "💰 Pricing Results"])
+tab1, tab2, tab3 = st.tabs(["📋 Build & Manage Portfolio", "💰 Pricing Results", "🧪 Stress Test"])
 # Shared elements
 start_date = st.session_state.pricing_date
 spot = st.session_state.spot
@@ -216,7 +216,7 @@ with tab2:
             - 🔼 <strong>Gamma:</strong> <code>{gamma:.6f}</code> → Delta changes with spot.<br>
             - 📈 <strong>Vega:</strong> <code>{vega:.4f}</code> → Portfolio gains €{vega:.2f} per +1% change in implied volatility.<br>
             - ⏳ <strong>Theta:</strong> <code>{theta:.2f}</code> → Annual time decay. Approx. <strong>€{theta_daily:.4f}</strong> loss <i>per day</i> if nothing changes.<br>
-            - 💸 <strong>Rho:</strong> <code>{rho:.2f}</code> → Value moves €{rho / 100:.2f} per +1% change in interest rates.
+            - 💸 <strong>Rho:</strong> <code>{rho:.2f}</code> → Value moves €{rho:.2f} per +1% change in interest rates.
 
             </div>
             """, unsafe_allow_html=True)
@@ -347,3 +347,125 @@ with tab2:
             st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ Price the portfolio first in the previous tab.")
+
+with tab3:
+    if st.session_state.get("portfolio_priced", False):
+        st.title("📉 Stress Testing")
+        st.metric("📊 Net Present Value (NPV)", f"{st.session_state.npv:.2f}")
+        st.markdown("### ⚙️ Define Stress Scenario")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            preset = st.selectbox("🎯 Choose Preset", ["Manual", "Bearish Market", "Volatility Spike", "ECB Hike", "Bullish Recovery"])
+        with col4:
+            apply = st.button("🚀 Run Stress Test")
+
+        spot_shock, vol_shock, rate_shock, time_shock_days = 0.0, 0.0, 0.0, 0
+
+        if preset == "Bearish Market":
+            spot_shock = -0.15
+            vol_shock = 0.10
+            rate_shock = -0.005
+        elif preset == "Volatility Spike":
+            spot_shock = -0.05
+            vol_shock = 0.20
+        elif preset == "ECB Hike":
+            spot_shock = -0.02
+            rate_shock = 0.01
+        elif preset == "Bullish Recovery":
+            spot_shock = 0.10
+            vol_shock = -0.08
+            rate_shock = 0.005
+
+        st.markdown("Customize values if needed:")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            spot_shock = st.number_input("🔺 Spot Change (%)", value=spot_shock * 100, step=0.1) / 100
+        with col2:
+            vol_shock = st.number_input("📈 Volatility Shock (pts)", value=vol_shock * 100, step=0.01) / 100
+        with col3:
+            rate_shock = st.number_input("💸 Rate Change (bps)", value=rate_shock * 10000, step=1.0) / 10000
+        with col4:
+            time_shock_days = st.number_input("⏳ Days Forward", value=time_shock_days, step=1)
+
+        if apply:
+            from copy import deepcopy
+            from datetime import datetime, timedelta
+
+            base_npv = st.session_state.npv
+            ptf = st.session_state.portfolio
+
+            def price_ptf(spot=False, vol=False, rate=False, time=False):
+                total = 0
+                for _, entry in ptf._portfolio.items():
+                    pricer = deepcopy(entry["pricer"])
+                    q = entry["quantity"]
+                    if spot: pricer._spot *= (1 + spot_shock)
+                    if vol:
+                        if pricer._model_name == "Heston":
+                            pricer._model._v0 += vol_shock**2
+                        elif pricer._model_name == "Dupire":
+                            pricer._model._spread_vol = vol_shock
+                    if rate: pricer._option._rate += rate_shock
+                    if time:
+                        fmt = pricer._option._format
+                        new_end = datetime.strptime(pricer._option._end_date, fmt) - timedelta(days=time_shock_days)
+                        pricer._option._end_date = new_end.strftime(fmt)
+                        pricer._option.__rebuild__()
+                    total += pricer.price * q
+                return total
+
+            # Step-by-step pricing
+            npv_spot = price_ptf(spot=True)
+            npv_vol = price_ptf(spot=True, vol=True)
+            npv_rate = price_ptf(spot=True, vol=True, rate=True)
+            npv_time = price_ptf(spot=True, vol=True, rate=True, time=True)
+
+            stressed_npv = npv_time
+            delta_npv = stressed_npv - base_npv
+
+            st.markdown("### 📊 Stress Test Results")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("New NPV", f"{stressed_npv:,.2f} €")
+            with col2:
+                st.metric("Δ NPV (Total)", f"{delta_npv:,.2f} €")
+
+            st.markdown("---")
+            st.markdown("### 📊 Waterfall Breakdown")
+
+            waterfall_fig = go.Figure(go.Waterfall(
+                name="NPV Shocks",
+                orientation="v",
+                measure=["absolute", "relative", "relative", "relative", "total"],
+                x=["Base NPV", "Spot Shock", "Vol Shock", "Rate Shock", "Final NPV"],
+                y=[
+                    base_npv,
+                    npv_spot - base_npv,
+                    npv_vol - npv_spot,
+                    npv_rate - npv_vol,
+                    stressed_npv
+                ],
+                connector={"line": {"color": "rgb(63, 63, 63)"}},
+                textposition="outside",
+                text=[f"{v:.2f}" for v in [
+                    base_npv,
+                    npv_spot - base_npv,
+                    npv_vol - npv_spot,
+                    npv_rate - npv_vol,
+                    stressed_npv
+                ]]
+            ))
+
+            waterfall_fig.update_layout(
+                title="📊 Sequential Impact of Market Shocks on NPV",
+                yaxis_title="NPV (€)",
+                height=450,
+                margin=dict(l=60, r=60, t=60, b=60)
+            )
+
+            st.plotly_chart(waterfall_fig, use_container_width=True)
+    else:
+        st.info("⚠️ Please price the portfolio first.")
+
+

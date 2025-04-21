@@ -18,7 +18,7 @@ start_date = st.session_state.pricing_date
 spot = st.session_state.spot
 
 st.title("🔁 Autocalls Pricing Engine")
-tab1, tab2 = st.tabs(["🏗️ Build & Price", "📊 Results"])
+tab1, tab2, tab3 = st.tabs(["🏗️ Build & Price", "📊 Results", "🧪 Stress Test"])
 
 # ---- SESSION INIT ----
 if "autocall_pricer" not in st.session_state:
@@ -147,3 +147,125 @@ with tab2:
         st.plotly_chart(fig_curve, use_container_width=True)
     else:
         st.info("⚠️ Please price an autocall first in the previous tab.")
+
+with tab3:
+    st.header("🧪 Stress Testing Autocall")
+    if st.session_state.get("autocall_pricer") is None:
+        st.info("⚠️ Please price an Autocall first in the 'Build & Price' tab.")
+    else:
+        base_npv = st.session_state.autocall_results["npv"]
+        st.metric("📊 Net Present Value (NPV)", f"{base_npv:.2f}")
+
+        st.markdown("### ⚙️ Define Stress Scenario")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            preset = st.selectbox("🎯 Choose Preset", ["Manual", "Bearish Market", "Volatility Spike", "ECB Hike", "Bullish Recovery"])
+        with col4:
+            apply = st.button("🚀 Run Stress Test")
+
+        # Default values
+        spot_shock, vol_shock, rate_shock, time_shock_days = 0.0, 0.0, 0.0, 0
+
+        if preset == "Bearish Market":
+            spot_shock = -0.15
+            vol_shock = 0.10
+            rate_shock = -0.005
+        elif preset == "Volatility Spike":
+            spot_shock = -0.05
+            vol_shock = 0.20
+        elif preset == "ECB Hike":
+            spot_shock = -0.02
+            rate_shock = 0.01
+        elif preset == "Bullish Recovery":
+            spot_shock = 0.10
+            vol_shock = -0.08
+            rate_shock = 0.005
+
+        st.markdown("Customize values if needed:")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            spot_shock = st.number_input("🔺 Spot Change (%)", value=spot_shock * 100, step=0.1) / 100
+        with col2:
+            vol_shock = st.number_input("📈 Volatility Shock (pts)", value=vol_shock * 100, step=0.01) / 100
+        with col3:
+            rate_shock = st.number_input("💸 Rate Change (bps)", value=rate_shock * 10000, step=1.0) / 10000
+        with col4:
+            time_shock_days = st.number_input("⏳ Days Forward", value=time_shock_days, step=1)
+
+        if apply:
+            from copy import deepcopy
+            from datetime import datetime, timedelta
+
+            base_pricer = st.session_state.autocall_pricer
+
+            def reprice_autocall(spot=False, vol=False, rate=False, time=False):
+                pricer = deepcopy(base_pricer)
+                if spot:
+                    pricer._spot *= (1 + spot_shock)
+                if vol:
+                    if pricer._model_name == "Heston":
+                        pricer._model._v0 += vol_shock**2
+                    elif pricer._model_name == "Dupire":
+                        pricer._model._spread_vol = vol_shock
+                if rate:
+                    pricer._option._rate += rate_shock
+                if time:
+                    fmt = pricer._option._format
+                    new_end = datetime.strptime(pricer._option._end_date, fmt) - timedelta(days=time_shock_days)
+                    pricer._option._end_date = new_end.strftime(fmt)
+                    pricer._option.__rebuild__()
+                return pricer.price[0]  # return npv only
+
+            # Sequential impact pricing
+            npv_spot = reprice_autocall(spot=True)
+            npv_vol = reprice_autocall(spot=True, vol=True)
+            npv_rate = reprice_autocall(spot=True, vol=True, rate=True)
+            npv_time = reprice_autocall(spot=True, vol=True, rate=True, time=True)
+
+            stressed_npv = npv_time
+            delta_npv = stressed_npv - base_npv
+
+            st.markdown("### 📊 Stress Test Results")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("New NPV", f"{stressed_npv:.2f} €")
+            with col2:
+                st.metric("Δ NPV (Total)", f"{delta_npv:.2f} €")
+
+            # Waterfall Chart
+            st.markdown("---")
+            st.markdown("### 📊 Waterfall Breakdown")
+
+            import plotly.graph_objects as go
+            waterfall_fig = go.Figure(go.Waterfall(
+                name="NPV Shocks",
+                orientation="v",
+                measure=["absolute", "relative", "relative", "relative", "total"],
+                x=["Base NPV", "Spot Shock", "Vol Shock", "Rate Shock", "Final NPV"],
+                y=[
+                    base_npv,
+                    npv_spot - base_npv,
+                    npv_vol - npv_spot,
+                    npv_rate - npv_vol,
+                    stressed_npv
+                ],
+                connector={"line": {"color": "rgb(63, 63, 63)"}},
+                textposition="outside",
+                text=[f"{v:.2f}" for v in [
+                    base_npv,
+                    npv_spot - base_npv,
+                    npv_vol - npv_spot,
+                    npv_rate - npv_vol,
+                    stressed_npv
+                ]]
+            ))
+
+            waterfall_fig.update_layout(
+                title="📊 Sequential Impact of Market Shocks on NPV",
+                yaxis_title="NPV (€)",
+                height=450,
+                margin=dict(l=60, r=60, t=60, b=60)
+            )
+
+            st.plotly_chart(waterfall_fig, use_container_width=True)

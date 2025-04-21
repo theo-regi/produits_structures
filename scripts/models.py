@@ -56,7 +56,7 @@ class BSM:
         Calculate Vega of the given option.
         """
         d1_prime = 1/np.sqrt(2*np.pi) * np.exp(-self.d1(spot)**2/2)
-        return spot * np.sqrt(self._option.T) * d1_prime * np.exp(-self._option._div_rate * self._option.T)
+        return spot * np.sqrt(self._option.T) * d1_prime * np.exp(-self._option._div_rate * self._option.T)/100
 
     def theta(self, spot:float, rate:float=None) -> float:
         """
@@ -83,9 +83,9 @@ class BSM:
         if rate is None:
             rate = self._option._rate
         if self._option._type == OptionType.CALL:
-            return self._option._strike*self._option.T*np.exp(-rate*self._option.T)*norm.cdf(self.d2(spot))
+            return self._option._strike*self._option.T*np.exp(-rate*self._option.T)*norm.cdf(self.d2(spot))/100
         elif self._option._type == OptionType.PUT:
-            return -self._option._strike*self._option.T*np.exp(-rate*self._option.T)*norm.cdf(-self.d2(spot))
+            return -self._option._strike*self._option.T*np.exp(-rate*self._option.T)*norm.cdf(-self.d2(spot))/100
         else:
             ValueError("Option type not supported !")
             pass
@@ -167,7 +167,7 @@ class Heston:
         new_model._params['v0']+=0.01
         new_model.__init__(new_model._option, new_model._params, new_model._nb_paths, new_model._nb_steps)
         price_prime = new_model.price(spot)
-        return (price_prime-price)/np.sqrt(0.01)
+        return ((price_prime-price)/np.sqrt(0.01))/100
 
     def theta(self, spot:float, rate:float=None) -> float:
         """
@@ -214,7 +214,7 @@ class Heston:
         new_model._option._rate=rate
 
         price_prime = new_model.price(spot)
-        return (price_prime-price)/(rate-self._option._rate)
+        return ((price_prime-price)/(rate-self._option._rate))/100
 
     def calculate_pay_offs(self, spot:float) -> None:
         """
@@ -451,7 +451,7 @@ class Dupire:
         #new_model.__init__(new_model._option, new_model._local_vol, new_model._nb_paths, new_model._nb_steps, spread_vol=0.01)
         
         price_prime = self.price(spot,spread_vol=0.01)
-        return (price_prime - self._price)/np.sqrt(0.01)
+        return ((price_prime - self._price)/np.sqrt(0.01))/100
     
     def theta(self, spot:float)->float:
         """
@@ -488,7 +488,7 @@ class Dupire:
         new_model._option._rate = rate
 
         price_prime = new_model.price(spot)
-        return (price_prime - price) / (rate - self._option._rate)
+        return ((price_prime - price) / (rate - self._option._rate))/100
 
     def __deep_copy__(self):
         """
