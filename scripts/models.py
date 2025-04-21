@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.stats import norm
-from constants import OptionType, NUMBER_PATHS_H, NB_STEPS_H, BASE_DELTA_S, HESTON_PATHS_METHOD, SEED_SIMULATIONS
+from constants import OptionType, BarrierType, NUMBER_PATHS_H, NB_STEPS_H, BASE_DELTA_S, HESTON_PATHS_METHOD, SEED_SIMULATIONS
 from datetime import datetime, timedelta
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les différents models diffusion/pricing------------
@@ -183,14 +183,19 @@ class Heston:
         date_obj -= timedelta(days=1)
         new_date = date_obj.strftime(new_option._format)
         new_option._end_date=new_date
-        new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._price)
-        
+
+        if new_option._type == OptionType.CALL or new_option._type == OptionType.PUT:
+            new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._price)
+        elif new_option._type == BarrierType.CALL_DOWN_IN or new_option._type == BarrierType.CALL_DOWN_OUT or new_option._type == BarrierType.CALL_UP_IN or new_option._type == BarrierType.CALL_UP_OUT or new_option._type == BarrierType.PUT_DOWN_IN or new_option._type == BarrierType.PUT_DOWN_OUT or new_option._type == BarrierType.PUT_UP_IN or new_option._type == BarrierType.PUT_UP_OUT:
+            new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._barrier_strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._div_rate, new_option._price)
+
         new_model = self.__deep_copy__()
         new_model._option=new_option
         new_model.__init__(new_model._option, new_model._params, new_model._nb_paths, new_model._nb_steps)
 
         dt = self._option.T - new_model._option.T
         new_price = new_model.price(spot)
+        print(dt)
         return (new_price-price)/dt
         
     def rho(self, spot:float, rate:float=None) -> float:
@@ -348,9 +353,10 @@ class Dupire:
         self._payoffs=[]
         self._spots=[]
         self._price=None
+        self._spread_vol=None
         pass
 
-    def _generate_paths(self, spot:float, seed:float=SEED_SIMULATIONS, spread_vol:float=0) -> np.ndarray:
+    def _generate_paths(self, spot:float, seed:float=SEED_SIMULATIONS) -> np.ndarray:
         """
         Generate paths for the Dupire model using the local volatility surface.
         """
@@ -370,12 +376,12 @@ class Dupire:
                 z[:,i] = (z[:,i] - np.mean(z[:,i]))/np.std(z[:,i])
             effective_t = max(float(t[i]), (float(self._first_date)+0.0000001))
             effective_k = max(float(self._option._strike), float(self._first_strike))
-            vol_loc = self._local_vol.get_local_implied_vol(effective_t, effective_k) + spread_vol
+            vol_loc = self._local_vol.get_local_implied_vol(effective_t, effective_k) + self._spread_vol
             count = 0
             while check == False and count < 1000:
                 count += 1
                 if vol_loc is None:
-                    vol_loc = self._local_vol.get_local_implied_vol(effective_t, effective_k) + spread_vol
+                    vol_loc = self._local_vol.get_local_implied_vol(effective_t, effective_k) + self._spread_vol
                 else:
                     check = True
             s[:,i+1]=s[:,i] + (self._option._rate - 0.5*vol_loc**2) * dt + vol_loc * z[:,i] * np.sqrt(dt)          
@@ -389,7 +395,8 @@ class Dupire:
         """
         Compute pay_offs of the given option.
         """
-        paths = self._generate_paths(spot, spread_vol=spread_vol)
+        self._spread_vol=spread_vol
+        paths = self._generate_paths(spot)
         self._spots = paths['Spots'][:, -1]
 
         payoffs=[]
@@ -458,11 +465,15 @@ class Dupire:
         date_obj-=timedelta(days=1)
         new_date=date_obj.strftime(new_option._format)
         new_option._end_date=new_date
-        new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._price)
-        
+
+        if new_option._type == OptionType.CALL or new_option._type == OptionType.PUT:
+            new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._price)
+        elif new_option._type == BarrierType.CALL_DOWN_IN or new_option._type == BarrierType.CALL_DOWN_OUT or new_option._type == BarrierType.CALL_UP_IN or new_option._type == BarrierType.CALL_UP_OUT or new_option._type == BarrierType.PUT_DOWN_IN or new_option._type == BarrierType.PUT_DOWN_OUT or new_option._type == BarrierType.PUT_UP_IN or new_option._type == BarrierType.PUT_UP_OUT:
+            new_option.__init__(new_option._start_date, new_option._end_date, new_option._type, new_option._strike, new_option._barrier_strike, new_option._rate, new_option._day_count, new_option._rolling_conv, new_option._notional, new_option._format, new_option._currency, new_option._div_rate, new_option._price)
+
         new_model=self.__deep_copy__()
         new_model._option=new_option
-        #new_model.__init__(new_model._option, new_model._local_vol, new_model._nb_paths, new_model._nb_steps)
+        new_model.__init__(new_model._option, new_model._local_vol, new_model._nb_paths, new_model._nb_steps)
 
         dt=self._option.T-new_model._option.T
         new_price=new_model.price(spot)

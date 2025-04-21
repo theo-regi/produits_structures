@@ -19,6 +19,7 @@ import scripts.utils as utils
 import pandas as pd
 from scipy.stats import norm
 from collections import defaultdict
+import copy
 
 #Supported models for options pricing
 dict_models = {"Black-Scholes-Merton": BSM, "Heston": Heston, "Dupire": Dupire}
@@ -931,7 +932,7 @@ class BarrierOption(EQDProduct):
             pass
 
     def __deep_copy__(self):
-        return BarrierOption(self._start_date, self._end_date, self._type, self._barrier_type, self._strike, self._barrier_strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
+        return BarrierOption(self._start_date, self._end_date, self._type, self._strike, self._barrier_strike, self._rate, self._day_count, self._rolling_conv, self._notional, self._format, self._currency, self._div_rate, self._price, self._volume)
 
 #Vanilla Autocalls
 class Autocalls(EQDProduct):
@@ -1404,7 +1405,7 @@ class SSVICalibration:
         self._atm_prices = self._reprice_ATM_options
 
         self.calibrate_SSVI()
-
+        
         cache_key = (data_path, file_name_underlying)
         cached_ssvi = get_from_cache("SSVICalibration", cache_key)
         if cached_ssvi is None:
@@ -1415,7 +1416,7 @@ class SSVICalibration:
         if cached_params is None:
             cached_params = self._ssvi_params
             set_in_cache("SSVI", cache_key, cached_params)
-
+    
     @property
     def _params_svis(self)->dict:
         """
@@ -1504,7 +1505,7 @@ class SSVICalibration:
             """
             SSVI total variance function.
             """
-            phi = mu*(thetas **l)
+            phi = mu*(thetas **(-l))
             term = phi * k_vec + rho
             sqrt_term = np.sqrt(term**2 + (1 - rho**2))
             return 0.5 * thetas * (1 + rho * phi * k_vec + sqrt_term)
@@ -1936,7 +1937,7 @@ class OptionPricer:
     def __init__(self, start_date:str, end_date:str, type:str=OptionType.CALL, barrier_type:str=None, model:str=BASE_MODEL,
                  spot:float = None, strike: float = BASE_STRIKE, barrier_strike:float=None, div_rate: float = BASE_DIV_RATE,
                  day_count: str = CONVENTION_DAY_COUNT, rolling_conv: str = ROLLING_CONVENTION,
-                 notional: float = BASE_NOTIONAL, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
+                 notional: float = 1, format_date: str = FORMAT_DATE, currency: str = BASE_CURRENCY,
                  sigma: float = None, rate: float = BASE_RATE, price: float = None,
                  model_parameters: dict = None, nb_paths: float = NUMBER_PATHS_H, nb_steps: float = NB_STEPS_H,
                  data_path: str = FILE_PATH, file_name_underlying: str = FILE_UNDERLYING) -> None:
@@ -2072,6 +2073,9 @@ class OptionPricer:
     def get_option(self):
         return self._option
 
+    def __deep_copy__(self):
+        return OptionPricer(self._start_date, self._end_date, type=self._type, barrier_type=self._barrier_type, model=self._model_name, spot=self._spot, strike=self._strike, barrier_strike=self._barrier_strike, div_rate=self._div_rate, day_count=self._day_count, rolling_conv=self._rolling_conv, notional=self._notional, format_date=self._format_date, currency=self._currency, sigma=self._sigma, rate=self._rate, model_parameters=self._model_parameters, nb_paths=self._nb_paths, nb_steps=self._nb_steps, price=self._price)
+
 #Autocall:
 class AutocallPricer:
     """
@@ -2113,7 +2117,7 @@ class AutocallPricer:
         if spot is None:
             data = pd.read_csv(self._file_name_underlying, sep=';', index_col=0)
             data.index = pd.to_datetime(data.index)
-            spot = data.loc[pd.to_datetime(self._start_date),"4. close"]
+            spot = data.loc[pd.to_datetime(self._start_date, format=FORMAT_DATE),"4. close"]
         self._spot = spot
 
         if model_parameters is not None:
@@ -2241,3 +2245,4 @@ class Portfolio:
             pay_offs.extend([x * item['quantity'] for x in pricer._payoff])
             spots.extend(pricer._spots_paths)
         return sum(npvs), npvs, pay_offs, spots
+    

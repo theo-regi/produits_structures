@@ -1,4 +1,4 @@
-from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI, OPTIONS_SOLVER_SVI, FILE_PATH, FILE_UNDERLYING, DATA_PATH, FORMAT_DATE
+from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI, OPTIONS_SOLVER_SVI, FILE_PATH, FILE_UNDERLYING, DATA_PATH, FORMAT_DATE, BASE_CURRENCY
 
 from datetime import datetime as dt
 from datetime import timedelta
@@ -174,7 +174,7 @@ class PaymentScheduleHandler:
             if self.__periodicity == "monthly":
                 count_date += relativedelta(months=1)
                 list_dates.append(count_date)
-            elif self.__periodicity == "quaterly":
+            elif self.__periodicity == "quarterly":
                 count_date += relativedelta(months=3)
                 list_dates.append(count_date)
             elif self.__periodicity == "semi-annually":
@@ -631,16 +631,19 @@ class SVIParamsFinder:
 
 #Helper to get the market from the currency.
 def get_market(currency):
-    if currency == "EUR":
-        return "XECB"
-    elif currency == "USD":
-        return "XNYS"
-    elif currency == "GBP":
-        return "IFEU"
-    elif currency == "BRL":
-        return "BVMF"
-    else:
-        raise ValueError(f"Currency {currency} is not supported ! Choose: EUR, USD, GBP, BRL")
+    market_map = {
+        "EUR": "XECB",
+        "USD": "XNYS",
+        "GBP": "IFEU",
+        "BRL": "BVMF"
+    }
+    if currency is None:
+        currency = BASE_CURRENCY
+
+    market = market_map.get(currency)
+    if market is None:
+        raise ValueError(f"Currency '{currency}' is not supported! Choose from: {', '.join(market_map.keys())}")
+    return market
 
 #Helper to calculate the yield of a fixed-income product.
 def calculate_yield(cashflows: dict, market_price:float, initial_rate:float=INITIAL_RATE):

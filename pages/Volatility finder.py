@@ -1,5 +1,4 @@
 import streamlit as st
-import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
@@ -23,7 +22,7 @@ pricing_date = st.session_state.pricing_date
 st.info(f"📅 Pricing Date: **{pricing_date}**")
 
 # Tabs for SVI, SSVI, Dupire
-svi_tab, ssvi_tab, dupire_tab = st.tabs(["🟥 SVI", "🟦 SSVI", "🟧 Dupire Local Vol"])
+svi_tab, ssvi_tab, dupire_tab = st.tabs(["🟥 SVI", "🟦 SSVI", "🟧 Dupire Local Volatility"])
 spot = st.session_state.spot
 with svi_tab:
     st.header("SVI Volatility Slice")
@@ -128,8 +127,8 @@ with ssvi_tab:
                                 scene=dict(
                                     xaxis_title='Strike',
                                     yaxis_title='Maturity (T)',
-                                    zaxis_title='Volatility',
-                                    zaxis=dict(range=[0, vol_grid.max() * 1.3])
+                                    zaxis_title='Implied Volatility',
+                                    zaxis=dict(range=[vol_grid.min() * 0.7, vol_grid.max() * 1.3])
                                     ),
                                 height=800, width=800)
             st.plotly_chart(fig3d, use_container_width=True)
@@ -139,8 +138,8 @@ with ssvi_tab:
             sampled_T = np.linspace(min(maturities), max(maturities), 20)
             matrix_data = [[round(ssvi(k, t), 4) for k in sampled_K] for t in sampled_T]
             df_matrix = pd.DataFrame(matrix_data, index=[f"T={t:.2f}" for t in sampled_T], columns=[f"K={k:.2f}" for k in sampled_K])
-            st.markdown("**Sampled Volatilities from SSVI (σ(K, T))**")
-            st.dataframe(df_matrix, use_container_width=True, height=800)
+            st.markdown("**Sampled Implied Volatilities from SSVI σ(K, T)**")
+            st.dataframe(df_matrix, use_container_width=True, height=600)
 
         except Exception as e:
             st.error(f"❌ Error during SSVI calibration: {e}")
@@ -158,7 +157,7 @@ with dupire_tab:
             min_T = 0.02
             vol_matrix = vol_matrix[vol_matrix.index.astype(float) >= min_T]
             # 3D Surface plot from vol_matrix
-            strikes = np.array(vol_matrix.columns, dtype=float)
+            strikes = np.array([round(strike,2) for strike in vol_matrix.columns])
             maturities = np.array(vol_matrix.index, dtype=float)
             K_grid, T_grid = np.meshgrid(strikes, maturities)
             Z = vol_matrix.to_numpy()
@@ -169,15 +168,15 @@ with dupire_tab:
                                 scene=dict(
                                     xaxis_title='Strike',
                                     yaxis_title='Maturity (T)',
-                                    zaxis_title='Volatility',
+                                    zaxis_title='Implied Volatility',
                                     zaxis=dict(range=[0, np.nanmax(Z) * 1.3])
                                 ),
                                 height=800, width=800)
             st.plotly_chart(fig3d, use_container_width=True)
             
             # Display matrix preview
-            st.markdown("**Volatility Matrix (σ(K, T)) Sample:**")
-            st.dataframe(vol_matrix, use_container_width=True, height=800)
+            st.markdown("**Implied Volatility Matrix σ(K, T) Sample:**")
+            st.dataframe(vol_matrix, use_container_width=True, height=600)
 
         except Exception as e:
             st.error(f"❌ Error during Dupire calibration: {e}")

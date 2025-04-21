@@ -263,7 +263,7 @@ class TestOptionMarket(unittest.TestCase):
 class TestSSVI(unittest.TestCase):
     def setUp(self):
         """Set up the SSVI object"""
-        self.ssvi = SSVICalibration("Black-Scholes-Merton", "data/options.csv", "data/underlying_prices.csv", "13/03/2025")
+        self.ssvi = SSVICalibration("Black-Scholes-Merton", "data/options.csv", "data/underlying_prices.csv", "12/03/2025")
 
     def test_calibrate(self):
         """Test calibration of SSVI parameters"""
@@ -360,7 +360,7 @@ class TestHestonCalibration(unittest.TestCase):
 class TestHestonPricing(unittest.TestCase):
     def setUp(self):
             params = {'v0': np.float64(0.2426087693130581), 'kappa': np.float64(0.10072759576180132), 'theta': np.float64(0.10072759576180132), 'eta': np.float64(0.1), 'rho': np.float64(-0.012369127944111824)}
-            
+
             self.pricer=OptionPricer(
                 start_date="13/03/2025",
                 end_date="16/05/2025",
@@ -373,6 +373,21 @@ class TestHestonPricing(unittest.TestCase):
                 model_parameters=params,
                 nb_paths=1000,
                 nb_steps=1000)
+            
+            """
+            self.pricer=OptionPricer(
+                start_date="13/03/2025",
+                end_date="16/05/2025",
+                type=BarrierType.CALL_UP_OUT,
+                model="Heston",
+                spot=209.68,
+                barrier_strike=240,
+                strike=210,
+                currency="USD",
+                notional=1,
+                model_parameters=params,
+                nb_paths=1000,
+                nb_steps=1000)"""
 
     def test_price_payoffs(self):
         price = self.pricer.price

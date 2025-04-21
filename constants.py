@@ -40,13 +40,23 @@ INITIAL_NS = [1,1,1,1]
 TOLERANCE = 1e-8
 
 #Max iterations for the solver
-MAX_ITER = 100
+MAX_ITER = 1000
 
 #Bounds for the solver (volatility)
 BOUNDS = (1e-4, 5.0)
 
 #Starting point for the solver (volatility)
 STARTING_POINT = 0.2
+
+#_______________________________GENERAL STREAMLIT CONSTANTS:_______________________________
+#The spot range (float = spot - spot_range * spot) for the greeks graphs
+BASE_SPOT_RANGE = 0.9 #0.5 = +/-50% of the spot
+
+#The number of steps for the greeks graphs
+BASE_STEPS_GREEKS = 50 #25 steps for the greeks graphs (between mix and max spot definied above)
+
+#List of vols for the Pnl Matrix
+BASE_VOL_RANGE = [-0.20, -0.15, -0.10, -0.05, 0, 0.05, 0.10, 0.15, 0.20]
 
 #_______________________________GENERAL FINANCIAL PRODUCTS CONSTANTS:_______________________________
 #Base notional for the instruments, will be used if not provided by the user.
@@ -114,10 +124,10 @@ OTM_CALIBRATION = True #True for OTM calibration, False to take OTM and ATM opti
 VOLUME_CALIBRATION = True
 
 #Threshold for volume calibration (under average):
-VOLUME_THRESHOLD = 0.7
+VOLUME_THRESHOLD = 0.70
 
 #SSVI initial guess for the parameters (k, v_o, b_inf, p, mu, l):
-INITIAL_SSVI = [0.5, 0.04, 0.01, 0.1, 0.1, 0.1]
+INITIAL_SSVI = [0.5, 0.04, 0.01, 0.0, 0.1, 0.2]
 
 #Solver parameters
 OPTIONS_SOLVER_SSVI = {
@@ -158,7 +168,7 @@ HESTON_BOUNDS=(
 
 #Options for Heston model calibration:
 HESTON_CALIBRATION_OPTIONS={
-       'ftol': 1e-6,       # tolerance for convergence
+       #'ftol': 1e-6,       # tolerance for convergence
         'maxiter': 100,    # iteration limit
         'disp': True         # optional: shows progress in console
 }
@@ -243,12 +253,12 @@ DICT_PRODUCT = {"Call": OptionType.CALL,
                  "Put Up and In": BarrierType.PUT_UP_IN,
                  "Put Up and Out": BarrierType.PUT_UP_OUT,
                  "Autocall": AutocallsType.AUTOCALL,
-                 "Athena Autocall": AutocallsType.ATHENA,
+                 #"Athena Autocall": AutocallsType.ATHENA,
                  "Phoenix Autocall": AutocallsType.PHOENIX,
                  }
 
 DICT_AUTOCALLS = {"Autocall": AutocallsType.AUTOCALL,
-                 "Athena Autocall": AutocallsType.ATHENA,
+                 #"Athena Autocall": AutocallsType.ATHENA,
                  "Phoenix Autocall": AutocallsType.PHOENIX,
                  }
 
