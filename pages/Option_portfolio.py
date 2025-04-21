@@ -27,6 +27,7 @@ if "portfolio" not in st.session_state:
     st.session_state.portfolio = Portfolio()
     st.session_state.portfolio_data = []
     st.session_state.portfolio_priced = False
+
 #______________________________________TAB 1: Construction ptf____________________________________________
 with tab1:
     st.title("📦 Options Portfolio Builder")
@@ -285,11 +286,11 @@ with tab2:
             spot_center = st.session_state.spot
             spot_steps = np.linspace(spot_center * 0.8, spot_center * 1.2, 10)
             @st.cache_data
-            def compute_pnl_matrix(_ptf, spots, vol_shocks):
+            def compute_pnl_matrix(_ptf, spots, vol_moves):
                 base_price = st.session_state.npv
                 pnl_matrix = []
 
-                for vol in vol_shocks:
+                for vol in vol_moves:
                     row = []
                     for spot in spots:
                         price = 0
@@ -300,11 +301,13 @@ with tab2:
                             # --- Apply volatility shocks based on model type ---
                             if pricer._model_name == "Heston":
                                 if vol < 0:
-                                    pricer._model._v0 = pricer._model._v0-(vol**2)
-                                    #pricer._model._theta = pricer._model._theta-(vol**2)
+                                    orig_v0 = entry["pricer"]._model._v0
+                                    pricer._model._v0 = orig_v0-(vol**2)
+                                    #pricer._model._theta = orig_theta-(vol**2)
                                 else:
-                                    pricer._model._v0 = pricer._model._v0+vol**2
-                                    #pricer._model._theta = pricer._model._theta+vol**2
+                                    orig_v0 = entry["pricer"]._model._v0
+                                    pricer._model._v0 = orig_v0+(vol**2)
+                                    #pricer._model._theta = orig_theta+vol**2
                                 pricer._spot = spot
                                 price += pricer.price * quantity
                             elif pricer._model_name == "Dupire":
@@ -348,6 +351,7 @@ with tab2:
     else:
         st.info("⚠️ Price the portfolio first in the previous tab.")
 
+#________________________________________TAB 3: Sress Testing_____________________________________________
 with tab3:
     if st.session_state.get("portfolio_priced", False):
         st.title("📉 Stress Testing")

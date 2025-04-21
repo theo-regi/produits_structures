@@ -25,6 +25,7 @@ if "autocall_pricer" not in st.session_state:
     st.session_state.autocall_pricer = None
     st.session_state.autocall_results = {}
 
+#______________________________________TAB 1: Construction Autocalls____________________________________________
 with tab1:
     st.header("🏗️ Define Autocall Structure")
     st.metric("📈 Spot on valuation date", f"{spot:.2f}")
@@ -97,6 +98,7 @@ with tab1:
         st.session_state.autocall_paths = pricer._option._paths
         st.success("✅ Autocall priced successfully!")
 
+#_________________________________________TAB 2: Results Autocalls______________________________________________
 with tab2:
     st.header("📊 Pricing Results")
     if st.session_state.autocall_results:
@@ -148,6 +150,7 @@ with tab2:
     else:
         st.info("⚠️ Please price an autocall first in the previous tab.")
 
+#__________________________________________TAB 3: Stress Testing________________________________________________
 with tab3:
     st.header("🧪 Stress Testing Autocall")
     if st.session_state.get("autocall_pricer") is None:

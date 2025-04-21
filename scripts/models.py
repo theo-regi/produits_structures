@@ -195,7 +195,6 @@ class Heston:
 
         dt = self._option.T - new_model._option.T
         new_price = new_model.price(spot)
-        print(dt)
         return (new_price-price)/dt
         
     def rho(self, spot:float, rate:float=None) -> float:
