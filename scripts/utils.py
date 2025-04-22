@@ -419,6 +419,7 @@ class Rates_curve:
         # Retourner la volatilité et les courbes simulées
         return final_sigma, pd.DataFrame(all_simulated_rates * 100, columns=curve_df["Year_fraction"])
 
+
 #Classe de recherche de la volatilité implicite
 class ImpliedVolatilityFinder:
     """
@@ -624,10 +625,6 @@ class SVIParamsFinder:
         else:
             print(f"Optimization failed. Method: {self._method}, Tolerance: {self._tolerance}, Max Iterations: {count}, Bounds: {self._bounds}, Starting Point: {self._starting_point}")
             return None
-
-#Rates diffusion models: Vasicek, CIR, Hull-White(1F), HJM, Libor
-
-#Price diffision models: Mouvement Brownien, (Jump Diffusion, Diffusion Stochastique what are those ?) + besoin de prise en compte des divs
 
 #Helper to get the market from the currency.
 def get_market(currency):

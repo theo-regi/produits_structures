@@ -615,6 +615,7 @@ class FloatLeg(FixedIncomeProduct):
         self._cashflows_floor = discounted_cashflows
         pass
 
+#Class Swap
 class Swap(FixedIncomeProduct):
     """
     Class pour un swap classique, on va pouvoir trouver le taux d'un swap
@@ -1275,11 +1276,6 @@ class Autocalls(EQDProduct):
         volume=self._volume
         )
         pass
-
-
-#Classe Action: A définir, car je sais vraiment pas quoi mettre dans celle-ci vs les EQD.
-#Une possibilité serait de l'utiliser pour pricer l'action avec les modèles de diffusion, et lier un échéncier 
-#de dividendes etc.
 
 #Classe gestion du marché des options: Ne pas bouger de fichier, obligé d'être ici pour éviter les appels en ronds.
 class OptionMarket:

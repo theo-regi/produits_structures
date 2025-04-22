@@ -90,8 +90,6 @@ class BSM:
             ValueError("Option type not supported !")
             pass
 
-#Black 76:
-
 #Heston model:
 class Heston:
     """
@@ -328,7 +326,8 @@ class Heston:
         """
         new_option = self._option.__deep_copy__()
         return Heston(new_option, self._params, self._nb_paths, self._nb_steps)
-    
+
+#Local Volatility (Dupire Formula)    
 class Dupire:
     """
     Dupire Local Volatility Model for Monte Carlo pricing.

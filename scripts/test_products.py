@@ -5,7 +5,7 @@ from products import ZCBond, FixedLeg, FloatLeg,\
     OptionPricer, DupireLocalVol, HestonHelper, Portfolio, AutocallPricer, AutocallPricer
 
 from utils import Rates_curve
-from constants import OptionType, BarrierType, AutocallsType, Types
+from constants import OptionType, AutocallsType, Types
 import matplotlib.pyplot as plt
 
 class TestZCBond(unittest.TestCase):
@@ -88,8 +88,8 @@ class TestZCBond(unittest.TestCase):
 class TestFixedLeg(unittest.TestCase):
     def setUp(self):
         """Initialize a FixedLeg with a default nominal value"""
-        rate_curve = Rates_curve("RateCurve.csv", 5)
-        discount_curve = Rates_curve("RateCurve.csv")
+        rate_curve = Rates_curve("data\RateCurve.csv", 5)
+        discount_curve = Rates_curve("data\RateCurve.csv")
         self.fixed_leg = FixedLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", True)
 
     def test_npv(self):
@@ -126,8 +126,8 @@ class TestFixedLeg(unittest.TestCase):
 class TestFloatLeg(unittest.TestCase):
     def setUp(self):
         """Initialize a FloatLeg with a default nominal value"""
-        rate_curve = Rates_curve("RateCurve.csv")
-        discount_curve = Rates_curve("RateCurve.csv")
+        rate_curve = Rates_curve("data\RateCurve.csv")
+        discount_curve = Rates_curve("data\RateCurve.csv")
         self.float_leg = FloatLeg(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
 
 
@@ -180,10 +180,9 @@ class TestFloatLeg(unittest.TestCase):
 class TestSwap(unittest.TestCase):
     def setUp(self):
         """Initialize a FloatLeg with a default nominal value"""
-        rate_curve = Rates_curve("RateCurve.csv")
-        discount_curve = Rates_curve("RateCurve.csv")
+        rate_curve = Rates_curve("data\RateCurve.csv")
+        discount_curve = Rates_curve("data\RateCurve.csv")
         self.swap = Swap(rate_curve, "07/03/2025", "07/03/2030", "annually", "EUR", "30/360", "Modified Following", discount_curve, 100, 0, "%d/%m/%Y", "Nelson_Siegel", False)
-
 
     def test_calculate_fixed_rate(self):
         """Test Fixed Rate calculation"""

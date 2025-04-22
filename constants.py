@@ -11,6 +11,9 @@ FILE_PATH=os.path.join(DATA_PATH, "options.csv")
 #Underlying product file path:
 FILE_UNDERLYING=os.path.join(DATA_PATH,"underlying_prices.csv")
 
+#Curve Path
+CURVE_PATH=os.path.join(DATA_PATH,"RateCurve.csv")
+
 #_______________________________GENERAL UTILITIES CONSTANTS:_______________________________
 #Base type of interpolation for curves, will be used if not provided by the user.
 TYPE_INTERPOL = 'Quadratic' #Supported types: 'Linear', 'Quadratic', 'Nelson_Siegel', 'Flat'
