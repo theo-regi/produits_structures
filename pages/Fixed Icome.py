@@ -85,7 +85,7 @@ elif product_type == "Floating Leg":
         notional = st.number_input("Notional", value=BASE_NOTIONAL, key="float_notional")
         start_date = st.date_input("Start Date", date.today(), key="float_start")
         end_date = st.date_input("End Date", date.today().replace(year=date.today().year + 2), key="float_end")
-        freq = st.selectbox("Payment Frequency", ["monthly", "quarterly", "semi-annually", "annually"], index=2)
+        freq = st.selectbox("Payment Frequency", ["annually"], index=2)
         spread = st.number_input("Spread (bps)", value=25, step=5)
 
         submitted = st.form_submit_button("📥 Price Floating Leg")

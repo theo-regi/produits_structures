@@ -19,7 +19,6 @@ import scripts.utils as utils
 import pandas as pd
 from scipy.stats import norm
 from collections import defaultdict
-import copy
 
 #Supported models for options pricing
 dict_models = {"Black-Scholes-Merton": BSM, "Heston": Heston, "Dupire": Dupire}

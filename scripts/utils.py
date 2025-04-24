@@ -419,7 +419,6 @@ class Rates_curve:
         # Retourner la volatilité et les courbes simulées
         return final_sigma, pd.DataFrame(all_simulated_rates * 100, columns=curve_df["Year_fraction"])
 
-
 #Classe de recherche de la volatilité implicite
 class ImpliedVolatilityFinder:
     """
