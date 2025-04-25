@@ -1,5 +1,6 @@
-from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD, SVI_SOLVER_METHOD, INITIAL_SVI, OPTIONS_SOLVER_SVI, FILE_PATH, FILE_UNDERLYING, DATA_PATH, FORMAT_DATE, BASE_CURRENCY
-
+from constants import CONVENTION_DAY_COUNT, TYPE_INTERPOL, INITIAL_RATE, IMPLIED_VOL_METHODS, SOLVER_METHOD,\
+                      SVI_SOLVER_METHOD, INITIAL_SVI, OPTIONS_SOLVER_SVI, FILE_PATH, FILE_UNDERLYING, DATA_PATH,\
+                      FORMAT_DATE, BASE_CURRENCY
 from datetime import datetime as dt
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta
@@ -7,15 +8,13 @@ import holidays
 import pandas as pd
 import numpy as np
 from scipy.optimize import fsolve, minimize
-import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 import os
-
 from scripts.functions import optimize_nelson_siegel,nelson_siegel
+
 #-------------------------------------------------------------------------------------------------------
 #----------------------------Script pour implémenter les classes utilitaires----------------------------
 #-------------------------------------------------------------------------------------------------------
-
 #Maturity handler :: convention, format, rolling convention, market -> year fraction
 class Maturity_handler:
     """

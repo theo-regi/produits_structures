@@ -1,8 +1,6 @@
 #-----------------------------------------------------------------------------------------------------
 #------------------------------------SETUP de L'APP---------------------------------------------------
 #-----------------------------------------------------------------------------------------------------
-import subprocess
-import sys
 import os
 
 #Récupération du chemin absolu de l'app
@@ -23,7 +21,7 @@ from constants import clear_cache
 #Mise en Page de la page principale.
 st.session_state.STYLE_PATH = STYLE_PATH
 st.set_page_config(
-    page_title="📊 Structure product pricer",
+    page_title="Structure product pricer",
     layout="wide"
 )
 
@@ -77,9 +75,9 @@ with st.container():
         # Centrage horizontal du bouton de calibration
         st.markdown("<div style='display:flex; justify-content:center; margin-top:10px;'>", unsafe_allow_html=True)
 
-        if st.button("⚙️ Models calibration"):
+        if st.button("Models calibration"):
             clear_cache()
-            with st.spinner("⏳ Calibration running... May take few minutes..."):
+            with st.spinner("Calibration running... May take few minutes..."):
 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -112,7 +110,7 @@ with st.container():
 
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
-        if st.button("🧹 Cache cleanning: becarefull to recalibrate models !"):
+        if st.button("Cache cleanning: becarefull to recalibrate models !"):
             clear_cache()
             st.markdown(
                     '<div class="success-box">✅ Cache cleaned !</div>',

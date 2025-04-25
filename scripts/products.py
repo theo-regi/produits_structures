@@ -1,4 +1,7 @@
-from constants import OptionType, BarrierType, AutocallsType, Types, BASE_SPOT, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, \
+#-------------------------------------------------------------------------------------------------------
+#----------------------------Script pour implémenter les classes de produits----------------------------
+#-------------------------------------------------------------------------------------------------------
+from constants import OptionType, BarrierType, AutocallsType, Types, BASE_STRIKE, BASE_RATE, BASE_CURRENCY, \
     BASE_DIV_RATE, BOUNDS_MONEYNESS, OTM_CALIBRATION, VOLUME_CALIBRATION, VOLUME_THRESHOLD, \
     INITIAL_SSVI, SSVI_METHOD, OPTIONS_SOLVER_SSVI,BASE_NOTIONAL, CONVENTION_DAY_COUNT, \
     ROLLING_CONVENTION, FORMAT_DATE, TYPE_INTERPOL, EXCHANGE_NOTIONAL, BASE_SHIFT,BASE_MODEL,\
@@ -22,10 +25,6 @@ from collections import defaultdict
 
 #Supported models for options pricing
 dict_models = {"Black-Scholes-Merton": BSM, "Heston": Heston, "Dupire": Dupire}
-
-#-------------------------------------------------------------------------------------------------------
-#----------------------------Script pour implémenter les classes de produits----------------------------
-#-------------------------------------------------------------------------------------------------------
 
 #____________________________Classe pour les ZC (pas de call de l'abstraite)_____________________________
 #Zero-Coupon Class:: nominal (optional = 100 if not given)
@@ -2005,7 +2004,7 @@ class HestonHelper:
         return self._results_heston
 
 #-------------------------------------------------------------------------------------------------------
-#----------------------------Script pour implémenter les différentes classes prices---------------------
+#----------------------------Script pour implémenter les différentes classes pricers--------------------
 #-------------------------------------------------------------------------------------------------------
 #Options pricer: European style options
 class OptionPricer:
@@ -2272,10 +2271,6 @@ class AutocallPricer:
 
     def get_option(self):
         return self._option
-
-#-------------------------------------------------------------------------------------------------------
-#-----------------------------------Script pour portefeuille de produits:-------------------------------
-#-------------------------------------------------------------------------------------------------------
 
 #Option portolio for option strategies:
 class Portfolio:

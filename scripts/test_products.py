@@ -3,7 +3,6 @@ import unittest
 from products import ZCBond, FixedLeg, FloatLeg,\
     Swap, VanillaOption, OptionMarket, SSVICalibration,\
     OptionPricer, DupireLocalVol, HestonHelper, Portfolio, AutocallPricer, AutocallPricer
-
 from utils import Rates_curve
 from constants import OptionType, AutocallsType, Types
 import matplotlib.pyplot as plt

@@ -5,6 +5,7 @@ import os
 #-------------------------------------------------------------------------------------------------------
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(APP_DIR, "data") + "\\"
+
 #Option market file path:
 FILE_PATH=os.path.join(DATA_PATH, "options.csv")
 
@@ -27,6 +28,7 @@ CONVENTION_DAY_COUNT = '30/360' #Supported conventions: '30/360', 'ACT/360', 'AC
 #Default convention for rolling on closed days, will be used if not provided by the user.
 ROLLING_CONVENTION = 'Modified Following' #Supported conventions: 'Following', 'Modified Following', 'Preceding', 'Modified Preceding'
 
+#_______________________________GENERAL SOLVER CONSTANTS:_______________________________
 #Solver method for optimization, will be used for basic solvers (Yield/Implied vol/rates) if not provided by the user.
 SOLVER_METHOD = 'L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', 'Powell', 'TNC', but you will prefer L-BFGS-B for those basic problems
 
@@ -50,6 +52,49 @@ BOUNDS = (1e-4, 5.0)
 
 #Starting point for the solver (volatility)
 STARTING_POINT = 0.2
+
+
+#Initial guess for the SVI parameters (a,b,p,m,sigma)
+INITIAL_SVI = [0.1, 0.1, 0.1, 0.1, 0.1]
+
+#Solver parameters
+OPTIONS_SOLVER_SVI = {
+        'ftol': 1e-6,       # tolerance for convergence
+        'maxiter': 200,    # iteration limit
+        'disp': False         # optional: shows progress in console
+    }
+
+#SSVI initial guess for the parameters (k, v_o, b_inf, p, mu, l):
+INITIAL_SSVI = [0.5, 0.04, 0.01, 0.0, 0.1, 0.2]
+
+#Solver parameters
+OPTIONS_SOLVER_SSVI = {
+        'ftol': 1e-6,       # tolerance for convergence
+        'maxiter': 100,    # iteration limit
+        'disp': False         # optional: shows progress in console
+    }
+
+#Initial guess for Heston model:
+INITIAL_HESTON= [0.1, 0.1, 0.1, 0.1, 0] #[0.05, 0.2, 0.2, 0.2, -0.5]  #v0, kappa, theta, eta, rho
+
+#Base method for heston model calibration solver:
+HESTON_METHOD='L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', but you will prefer L-BFGS-B for those basic problems
+
+#Bounds for heston parameters:
+HESTON_BOUNDS=(
+    (1e-4, 10.0), #v0
+    (1e-4, 5.0), #kappa
+    (1e-4, 5.0), #theta
+    (1e-4, 5.0), #eta
+    (-0.9999,0.9999)  #rho
+)
+
+#Options for Heston model calibration:
+HESTON_CALIBRATION_OPTIONS={
+       #'ftol': 1e-6,       # tolerance for convergence
+        'maxiter': 100,    # iteration limit
+        'disp': True         # optional: shows progress in console
+}
 
 #_______________________________GENERAL STREAMLIT CONSTANTS:_______________________________
 #The spot range (float = spot - spot_range * spot) for the greeks graphs
@@ -107,16 +152,6 @@ IMPLIED_VOL_METHODS = {     #Used to directly map to the supported properties
     "Newton-Raphson": "_newton_raphson"
 }
 
-#Initial guess for the SVI parameters (a,b,p,m,sigma)
-INITIAL_SVI = [0.1, 0.1, 0.1, 0.1, 0.1]
-
-#Solver parameters
-OPTIONS_SOLVER_SVI = {
-        'ftol': 1e-6,       # tolerance for convergence
-        'maxiter': 200,    # iteration limit
-        'disp': False         # optional: shows progress in console
-    }
-
 #Moneyness bounds: to take only slight OTM/ATM options.
 BOUNDS_MONEYNESS = (0.7, 1.3)   #Avoid using to much over OTM / ATM options for vol calibrations
 
@@ -128,16 +163,6 @@ VOLUME_CALIBRATION = True
 
 #Threshold for volume calibration (under average):
 VOLUME_THRESHOLD = 0.70
-
-#SSVI initial guess for the parameters (k, v_o, b_inf, p, mu, l):
-INITIAL_SSVI = [0.5, 0.04, 0.01, 0.0, 0.1, 0.2]
-
-#Solver parameters
-OPTIONS_SOLVER_SSVI = {
-        'ftol': 1e-6,       # tolerance for convergence
-        'maxiter': 100,    # iteration limit
-        'disp': False         # optional: shows progress in console
-    }
 
 #Delta to place each strikes on the local vol surface.
 BASE_DELTA_K = 0.025 #think delta k as a percentage
@@ -153,28 +178,6 @@ BASE_MAX_T= 5.0
 
 #Base time interval between pricing_date and T:
 BASE_T_INTERVAL=0.25
-
-#Initial guess for Heston model:
-INITIAL_HESTON= [0.1, 0.1, 0.1, 0.1, 0] #[0.05, 0.2, 0.2, 0.2, -0.5]  #v0, kappa, theta, eta, rho
-
-#Base method for heston model calibration solver:
-HESTON_METHOD='L-BFGS-B' #Supported methods: 'L-BFGS-B', 'SLSQP', but you will prefer L-BFGS-B for those basic problems
-
-#Bounds for heston parameters:
-HESTON_BOUNDS=(
-    (1e-4, 10.0), #v0
-    (1e-4, 5.0), #kappa
-    (1e-4, 5.0), #theta
-    (1e-4, 5.0), #eta
-    (-0.9999,0.9999)  #rho
-)
-
-#Options for Heston model calibration:
-HESTON_CALIBRATION_OPTIONS={
-       #'ftol': 1e-6,       # tolerance for convergence
-        'maxiter': 100,    # iteration limit
-        'disp': True         # optional: shows progress in console
-}
 
 #Base limits of moneyness for heston (reduced to accelerate the calibration):
 if BASE_CALIBRATION_HESTON=='Market': BASE_LIMITS_K_H= (0.07, 1.30)

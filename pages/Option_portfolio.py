@@ -6,9 +6,6 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
-#-----------------------------------------------------------------------------------------------------
-#------------------------------------Page construction du portefeuille---------------------------------
-#-----------------------------------------------------------------------------------------------------
 #______________________________________INITIALISATION PAGE____________________________________________
 STYLE_PATH=st.session_state.STYLE_PATH
 def apply_css(STYLE_PATH):
@@ -17,7 +14,7 @@ def apply_css(STYLE_PATH):
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 apply_css(STYLE_PATH)
 
-tab1, tab2, tab3 = st.tabs(["📋 Build & Manage Portfolio", "💰 Pricing Results", "🧪 Stress Test"])
+tab1, tab2, tab3 = st.tabs(["Build & Manage Portfolio", "Pricing Results", "Stress Test"])
 # Shared elements
 start_date = st.session_state.pricing_date
 spot = st.session_state.spot
@@ -28,10 +25,13 @@ if "portfolio" not in st.session_state:
     st.session_state.portfolio_data = []
     st.session_state.portfolio_priced = False
 
+#-----------------------------------------------------------------------------------------------------
+#------------------------------------Page construction du portefeuille---------------------------------
+#-----------------------------------------------------------------------------------------------------
 #______________________________________TAB 1: Construction ptf____________________________________________
 with tab1:
-    st.title("📦 Options Portfolio Builder")
-    st.metric(label="📈 Spot on valuation date", value=f"{spot:.2f}")
+    st.title("Options Portfolio Builder")
+    st.metric(label="Spot on valuation date", value=f"{spot:.2f}")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -51,7 +51,7 @@ with tab1:
             barrier = st.number_input("Barrier Strike", value=round(spot*0.8, 0) if "Down" in selected_type else round(spot*1.2, 0))
 
     # Ajouter au portefeuille
-    if st.button("➕ Add this option to portfolio"):
+    if st.button("Add this option to portfolio"):
         st.session_state.portfolio._add_product(
             type_product=selected_type,
             start_date=start_date,
@@ -77,9 +77,9 @@ with tab1:
             "Notional":notional,
         })
 
-        st.success("✅ Option added to portfolio !")
+        st.success("Option added to portfolio !")
 
-    st.markdown("### 🧾 Portfolio Contents")
+    st.markdown("### Portfolio Contents")
     # Affichage du portefeuille
     portfolio_placeholder = st.empty()
     if len(st.session_state.portfolio_data) > 0:
@@ -87,13 +87,13 @@ with tab1:
 
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🧹 Clear Portfolio"):
+            if st.button("Clear Portfolio"):
                 st.session_state.portfolio.clear_portfolio()
                 st.session_state.portfolio_data = []
                 st.session_state.portfolio_priced = False
                 portfolio_placeholder.empty()
         with col2:
-            if st.button("💸 Price Portfolio"):
+            if st.button("Price Portfolio"):
                 st.session_state.npv, st.session_state.ptf_npvs, st.session_state.payoffs, st.session_state.spots = st.session_state.portfolio.price_portfolio()
                 st.session_state.portfolio_priced = True
                 st.success("✅ Portfolio priced. See results in the second tab.")
@@ -103,8 +103,8 @@ with tab1:
 #______________________________________TAB 2: Pricing and Greeks__________________________________________
 with tab2:
     if st.session_state.get("portfolio_priced", False):
-        st.title("💰 Portfolio Pricing Results")
-        st.metric("📊 Net Present Value (NPV)", f"{st.session_state.npv:.2f}")
+        st.title("Portfolio Pricing Results")
+        st.metric("Net Present Value (NPV)", f"{st.session_state.npv:.2f}")
 
         # Filter table and add NPV row
         cols_to_display = ["Type", "Strike", "Barrier", "Quantity", "Notional"]
@@ -119,13 +119,13 @@ with tab2:
         npv_row = pd.Series(["Total NPV", "", "", "", "", st.session_state.npv], index=df.columns)
         df = pd.concat([df, pd.DataFrame([npv_row])], ignore_index=True)
 
-        st.markdown("### 📋 Priced Portfolio Breakdown")
+        st.markdown("### Priced Portfolio Breakdown")
         st.dataframe(df, use_container_width=True)
 
         col1, col2, col3 = st.columns([1, 3, 1])
         with col2:
             # Plot payoff vs. spot
-            st.markdown("### 📈 Payoff vs. Spot")
+            st.markdown("### Payoff vs. Spot")
 
             fig = px.scatter(
                 x=st.session_state.spots,
@@ -140,7 +140,7 @@ with tab2:
             st.plotly_chart(fig, use_container_width=True)
 
         # --- Greeks Table and Portfolio Interpretation ---
-        st.subheader("📉 Option Greeks Breakdown")
+        st.subheader("Option Greeks Breakdown")
 
         portfolio_data = st.session_state.portfolio_data
         ptf = st.session_state.portfolio
@@ -171,7 +171,7 @@ with tab2:
 
         # Append portfolio total
         greek_table.append({
-            "Product": "📦 Portfolio Total",
+            "Product": "Portfolio Total",
             "Strike": None,
             "Delta": ptf_greeks["Delta"],
             "Gamma": ptf_greeks["Gamma"],
@@ -191,7 +191,7 @@ with tab2:
             st.dataframe(greek_df, use_container_width=True)
 
         # Extract total row for explanations
-        total = greek_df[greek_df["Product"] == "📦 Portfolio Total"].iloc[0]
+        total = greek_df[greek_df["Product"] == "Portfolio Total"].iloc[0]
 
         delta = total["Delta"]
         gamma = total["Gamma"]
@@ -213,20 +213,20 @@ with tab2:
             '>
             <h4 style='margin-top: 0; color: #002060;'>📘 Portfolio Greeks Interpretation</h4>
 
-            - 🔺 <strong>Delta:</strong> <code>{delta:.4f}</code> → Portfolio value increases by €{delta:.2f} per €1 move in the underlying.<br>
-            - 🔼 <strong>Gamma:</strong> <code>{gamma:.6f}</code> → Delta changes with spot.<br>
-            - 📈 <strong>Vega:</strong> <code>{vega:.4f}</code> → Portfolio gains €{vega:.2f} per +1% change in implied volatility.<br>
-            - ⏳ <strong>Theta:</strong> <code>{theta:.2f}</code> → Annual time decay. Approx. <strong>€{theta_daily:.4f}</strong> loss <i>per day</i> if nothing changes.<br>
-            - 💸 <strong>Rho:</strong> <code>{rho:.2f}</code> → Value moves €{rho:.2f} per +1% change in interest rates.
+            - <strong>Delta:</strong> <code>{delta:.4f}</code> → Portfolio value increases by €{delta:.2f} per €1 move in the underlying.<br>
+            - <strong>Gamma:</strong> <code>{gamma:.6f}</code> → Delta changes with spot.<br>
+            - <strong>Vega:</strong> <code>{vega:.4f}</code> → Portfolio gains €{vega:.2f} per +1% change in implied volatility.<br>
+            - <strong>Theta:</strong> <code>{theta:.2f}</code> → Annual time decay. Approx. <strong>€{theta_daily:.4f}</strong> loss <i>per day</i> if nothing changes.<br>
+            - <strong>Rho:</strong> <code>{rho:.2f}</code> → Value moves €{rho:.2f} per +1% change in interest rates.
 
             </div>
             """, unsafe_allow_html=True)
 
                 # --- Greeks vs Spot Graphs (Portfolio) ---
-        st.subheader("📈 Portfolio Greeks Sensitivity vs Spot")
+        st.subheader("Portfolio Greeks Sensitivity vs Spot")
         
         # Button to trigger computation
-        if st.button("📊 Generate Greeks Charts / PnL Matrix"):
+        if st.button("Generate Greeks Charts / PnL Matrix"):
             progress_text = "Computing portfolio Greeks vs Spot..."
             progress_bar = st.progress(0, text=progress_text)
 
@@ -354,15 +354,15 @@ with tab2:
 #________________________________________TAB 3: Sress Testing_____________________________________________
 with tab3:
     if st.session_state.get("portfolio_priced", False):
-        st.title("📉 Stress Testing")
-        st.metric("📊 Net Present Value (NPV)", f"{st.session_state.npv:.2f}")
-        st.markdown("### ⚙️ Define Stress Scenario")
+        st.title("Stress Testing")
+        st.metric("Net Present Value (NPV)", f"{st.session_state.npv:.2f}")
+        st.markdown("### Define Stress Scenario")
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            preset = st.selectbox("🎯 Choose Preset", ["Manual", "Bearish Market", "Volatility Spike", "ECB Hike", "Bullish Recovery"])
+            preset = st.selectbox("Choose Preset", ["Manual", "Bearish Market", "Volatility Spike", "ECB Hike", "Bullish Recovery"])
         with col4:
-            apply = st.button("🚀 Run Stress Test")
+            apply = st.button("Run Stress Test")
 
         spot_shock, vol_shock, rate_shock, time_shock_days = 0.0, 0.0, 0.0, 0
 
@@ -384,13 +384,13 @@ with tab3:
         st.markdown("Customize values if needed:")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            spot_shock = st.number_input("🔺 Spot Change (%)", value=spot_shock * 100, step=0.1) / 100
+            spot_shock = st.number_input("Spot Change (%)", value=spot_shock * 100, step=0.1) / 100
         with col2:
-            vol_shock = st.number_input("📈 Volatility Shock (pts)", value=vol_shock * 100, step=0.01) / 100
+            vol_shock = st.number_input("Volatility Shock (pts)", value=vol_shock * 100, step=0.01) / 100
         with col3:
-            rate_shock = st.number_input("💸 Rate Change (bps)", value=rate_shock * 10000, step=1.0) / 10000
+            rate_shock = st.number_input("Rate Change (bps)", value=rate_shock * 10000, step=1.0) / 10000
         with col4:
-            time_shock_days = st.number_input("⏳ Days Forward", value=time_shock_days, step=1)
+            time_shock_days = st.number_input("Days Forward", value=time_shock_days, step=1)
 
         if apply:
             from copy import deepcopy
@@ -428,7 +428,7 @@ with tab3:
             stressed_npv = npv_time
             delta_npv = stressed_npv - base_npv
 
-            st.markdown("### 📊 Stress Test Results")
+            st.markdown("### Stress Test Results")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("New NPV", f"{stressed_npv:,.2f} €")
@@ -436,7 +436,7 @@ with tab3:
                 st.metric("Δ NPV (Total)", f"{delta_npv:,.2f} €")
 
             st.markdown("---")
-            st.markdown("### 📊 Waterfall Breakdown")
+            st.markdown("### Waterfall Breakdown")
 
             waterfall_fig = go.Figure(go.Waterfall(
                 name="NPV Shocks",
@@ -462,7 +462,7 @@ with tab3:
             ))
 
             waterfall_fig.update_layout(
-                title="📊 Sequential Impact of Market Shocks on NPV",
+                title="Sequential Impact of Market Shocks on NPV",
                 yaxis_title="NPV (€)",
                 height=450,
                 margin=dict(l=60, r=60, t=60, b=60)

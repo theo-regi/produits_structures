@@ -4,25 +4,25 @@ import pandas as pd
 import numpy as np
 from scripts.products import SSVICalibration, DupireLocalVol, OptionMarket
 import constants
-#-----------------------------------------------------------------------------------------------------
-#------------------------------------Page construction du portefeuille---------------------------------
-#-----------------------------------------------------------------------------------------------------
 #______________________________________INITIALISATION PAGE____________________________________________
 STYLE_PATH=st.session_state.STYLE_PATH
-st.set_page_config(page_title="📈 Volatility Models Viewer", layout="wide")
+st.set_page_config(page_title="Volatility Models Viewer", layout="wide")
 def apply_css(STYLE_PATH):
     with open(STYLE_PATH, "r") as f:
         css = f.read()
         st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 apply_css(STYLE_PATH)
 
-st.title("🧠 Volatility Surface Analysis")
+#-----------------------------------------------------------------------------------------------------
+#------------------------------------Page construction du portefeuille---------------------------------
+#-----------------------------------------------------------------------------------------------------
+st.title("Volatility Surface Analysis")
 # Use pricing date from session
 pricing_date = st.session_state.pricing_date
-st.info(f"📅 Pricing Date: **{pricing_date}**")
+st.info(f"Pricing Date: **{pricing_date}**")
 
 # Tabs for SVI, SSVI, Dupire
-svi_tab, ssvi_tab, dupire_tab = st.tabs(["🟥 SVI", "🟦 SSVI", "🟧 Dupire Local Volatility"])
+svi_tab, ssvi_tab, dupire_tab = st.tabs(["SVI", "SSVI", "Dupire Local Volatility"])
 spot = st.session_state.spot
 with svi_tab:
     st.header("SVI Volatility Slice")
@@ -35,7 +35,7 @@ with svi_tab:
     available_dates = svis.keys()
     maturity = st.selectbox("Available Dates :", available_dates)
 
-    if st.button("🧮 Calibrate SVI", key="svi_btn"):
+    if st.button("Calibrate SVI", key="svi_btn"):
         try:
             om = constants.get_from_cache("OptionMarket", cache_key)
             if om is None:
@@ -45,7 +45,7 @@ with svi_tab:
             types = ["Call" if tp == constants.OptionType.CALL else "Put" for tp in types]
             st.success(f"Loaded from calibration {len(strikes)} options | Spot: {spot:.2f} | T = {T:.2f}y")
 
-            st.metric(label="📈 Spot on valuation date", value=f"{spot:.2f}")
+            st.metric(label="Spot on valuation date", value=f"{spot:.2f}")
 
             # Retrieve SVI parameters from cache
             svi_params = svis.get(maturity) if svis else None
@@ -105,7 +105,7 @@ with ssvi_tab:
         ssvi = SSVICalibration("Black-Scholes-Merton", constants.FILE_PATH, constants.FILE_UNDERLYING, pricing_date)
 
     st.header("SSVI Volatility Surface")
-    if st.button("📊 Calibrate SSVI", key="ssvi_btn"):
+    if st.button("Calibrate SSVI", key="ssvi_btn"):
         try:
             params = ssvi.get_ssvi_params()
             # Display parameters nicely
@@ -151,7 +151,7 @@ with dupire_tab:
         dupire = DupireLocalVol("Black-Scholes-Merton", constants.FILE_PATH, constants.FILE_UNDERLYING, pricing_date)
 
     st.header("Dupire Local Volatility Surface")
-    if st.button("🔍 Calibrate Dupire Local Vol", key="dupire_btn"):
+    if st.button("Calibrate Dupire Local Vol", key="dupire_btn"):
         try:
             vol_matrix = dupire.get_implied_vol_matrix()
             min_T = 0.02

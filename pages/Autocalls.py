@@ -17,8 +17,8 @@ apply_css(STYLE_PATH)
 start_date = st.session_state.pricing_date
 spot = st.session_state.spot
 
-st.title("🔁 Autocalls Pricing Engine")
-tab1, tab2, tab3 = st.tabs(["🏗️ Build & Price", "📊 Results", "🧪 Stress Test"])
+st.title("Autocalls Pricing Engine")
+tab1, tab2, tab3 = st.tabs(["Build & Price", "Results", "Stress Test"])
 
 # ---- SESSION INIT ----
 if "autocall_pricer" not in st.session_state:
@@ -27,8 +27,8 @@ if "autocall_pricer" not in st.session_state:
 
 #______________________________________TAB 1: Construction Autocalls____________________________________________
 with tab1:
-    st.header("🏗️ Define Autocall Structure")
-    st.metric("📈 Spot on valuation date", f"{spot:.2f}")
+    st.header("Define Autocall Structure")
+    st.metric("Spot on valuation date", f"{spot:.2f}")
 
     st.subheader("Main Parameters")
     col1 = st.columns(2)
@@ -50,7 +50,7 @@ with tab1:
     col1, col2 = st.columns(2)
     with col1:
         coupon = st.number_input("Coupon Rate (%)", value=8.0)
-        coupon_strike = st.number_input("Coupon Barrier (%)", value=70.0)
+        coupon_strike = st.number_input("Coupon Barrier (%)", value=100.0)
         protection = st.number_input("Capital Protection Barrier (%)", value=60.0)
     with col2:
         exercise_type = st.selectbox("Exercise Type", ["American", "European"])
@@ -67,7 +67,7 @@ with tab1:
         if autocall_type == AutocallsType.PHOENIX:
             memory = st.checkbox("Coupon Memory", value=True)
 
-    if st.button("💸 Price Autocall"):
+    if st.button("Price Autocall"):
         pricer = AutocallPricer(
             start_date=start_date,
             end_date=end_date.strftime(FORMAT_DATE),
@@ -100,11 +100,11 @@ with tab1:
 
 #_________________________________________TAB 2: Results Autocalls______________________________________________
 with tab2:
-    st.header("📊 Pricing Results")
+    st.header("Pricing Results")
     if st.session_state.autocall_results:
         results = st.session_state.autocall_results
-        st.metric("💰 Net Present Value (NPV)", f"{results['npv']:.2f}")
-        st.metric("🎯 Par Coupon (NPV = 0)", f"{results['par_coupon']*100:.2f}%")
+        st.metric("Net Present Value (NPV)", f"{results['npv']:.2f}")
+        st.metric("Par Coupon (NPV = 0)", f"{results['par_coupon']*100:.2f}%")
 
         #Paths setup:
         paths = st.session_state.autocall_paths
@@ -141,7 +141,7 @@ with tab2:
         st.plotly_chart(fig)
 
         # Call Probability Curve
-        st.subheader("📉 Call Probability Curve")
+        st.subheader("Call Probability Curve")
         curve_df = pd.DataFrame(results["call_curve"], columns=["Time (Years)", "Cumulative Call Probability"])
         fig_curve = px.line(curve_df, x="Time (Years)", y="Cumulative Call Probability",
                             markers=True, title="Cumulative Call Probability Over Time")
@@ -152,20 +152,20 @@ with tab2:
 
 #__________________________________________TAB 3: Stress Testing________________________________________________
 with tab3:
-    st.header("🧪 Stress Testing Autocall")
+    st.header("Stress Testing Autocall")
     if st.session_state.get("autocall_pricer") is None:
         st.info("⚠️ Please price an Autocall first in the 'Build & Price' tab.")
     else:
         base_npv = st.session_state.autocall_results["npv"]
-        st.metric("📊 Net Present Value (NPV)", f"{base_npv:.2f}")
+        st.metric("Net Present Value (NPV)", f"{base_npv:.2f}")
 
-        st.markdown("### ⚙️ Define Stress Scenario")
+        st.markdown("### Define Stress Scenario")
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            preset = st.selectbox("🎯 Choose Preset", ["Manual", "Bearish Market", "Volatility Spike", "ECB Hike", "Bullish Recovery"])
+            preset = st.selectbox("Choose Preset", ["Manual", "Bearish Market", "Volatility Spike", "ECB Hike", "Bullish Recovery"])
         with col4:
-            apply = st.button("🚀 Run Stress Test")
+            apply = st.button("Run Stress Test")
 
         # Default values
         spot_shock, vol_shock, rate_shock, time_shock_days = 0.0, 0.0, 0.0, 0
@@ -188,13 +188,13 @@ with tab3:
         st.markdown("Customize values if needed:")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            spot_shock = st.number_input("🔺 Spot Change (%)", value=spot_shock * 100, step=0.1) / 100
+            spot_shock = st.number_input("Spot Change (%)", value=spot_shock * 100, step=0.1) / 100
         with col2:
-            vol_shock = st.number_input("📈 Volatility Shock (pts)", value=vol_shock * 100, step=0.01) / 100
+            vol_shock = st.number_input("Volatility Shock (pts)", value=vol_shock * 100, step=0.01) / 100
         with col3:
-            rate_shock = st.number_input("💸 Rate Change (bps)", value=rate_shock * 10000, step=1.0) / 10000
+            rate_shock = st.number_input("Rate Change (bps)", value=rate_shock * 10000, step=1.0) / 10000
         with col4:
-            time_shock_days = st.number_input("⏳ Days Forward", value=time_shock_days, step=1)
+            time_shock_days = st.number_input("Days Forward", value=time_shock_days, step=1)
 
         if apply:
             from copy import deepcopy
@@ -229,7 +229,7 @@ with tab3:
             stressed_npv = npv_time
             delta_npv = stressed_npv - base_npv
 
-            st.markdown("### 📊 Stress Test Results")
+            st.markdown("### Stress Test Results")
             col1, col2 = st.columns(2)
             with col1:
                 st.metric("New NPV", f"{stressed_npv:.2f} €")
@@ -238,7 +238,7 @@ with tab3:
 
             # Waterfall Chart
             st.markdown("---")
-            st.markdown("### 📊 Waterfall Breakdown")
+            st.markdown("### Waterfall Breakdown")
 
             import plotly.graph_objects as go
             waterfall_fig = go.Figure(go.Waterfall(
@@ -265,7 +265,7 @@ with tab3:
             ))
 
             waterfall_fig.update_layout(
-                title="📊 Sequential Impact of Market Shocks on NPV",
+                title="Sequential Impact of Market Shocks on NPV",
                 yaxis_title="NPV (€)",
                 height=450,
                 margin=dict(l=60, r=60, t=60, b=60)
