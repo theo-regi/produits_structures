@@ -116,3 +116,4 @@ with st.container():
                     '<div class="success-box">✅ Cache cleaned !</div>',
                     unsafe_allow_html=True
                 )
+
